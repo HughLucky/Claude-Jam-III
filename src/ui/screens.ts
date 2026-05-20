@@ -219,7 +219,7 @@ export function buildSplashScreen(
   screen.id = 'splash-screen'
   screen.style.cssText = 'background:none; justify-content:flex-end;'
   screen.innerHTML = `
-    <img src="/assets/images/hero16-9.png" alt="Quack-Stack"
+    <img src="${import.meta.env.BASE_URL}assets/images/hero16-9.png" alt="Quack-Stack"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;">
     <div style="position:relative;z-index:1;width:100%;
                 padding:2em 2em 1.6em;
