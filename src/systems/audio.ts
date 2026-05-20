@@ -1,4 +1,4 @@
-const BASE = '/assets/audio/'
+const BASE = `${import.meta.env.BASE_URL}assets/audio/`
 
 class AudioManager {
   private sfxMap = new Map<string, HTMLAudioElement>()

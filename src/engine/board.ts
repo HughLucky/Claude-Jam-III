@@ -56,7 +56,7 @@ export class Board {
 
   static async preload(): Promise<void> {
     if (_tileTemplate) return
-    const gltf = await new GLTFLoader().loadAsync('/assets/models/Q_tile_01.glb')
+    const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/models/Q_tile_01.glb`)
     _tileTemplate = gltf.scene as THREE.Group
 
     // Measure actual tile dimensions at natural scale

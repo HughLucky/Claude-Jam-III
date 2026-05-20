@@ -27,7 +27,7 @@ export class Player {
 
   static async preload(): Promise<void> {
     if (_duckyTemplate) return
-    const gltf = await new GLTFLoader().loadAsync('/assets/models/Q_ducky_01.glb')
+    const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/models/Q_ducky_01.glb`)
     _duckyTemplate = gltf.scene as THREE.Group
 
     // Center XZ on pivot, base at y=0

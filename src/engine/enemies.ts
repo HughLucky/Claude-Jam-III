@@ -59,12 +59,12 @@ export class EnemyManager {
     }
     ;[_enemy01Template, _enemy02Template, _enemy03Template,
       _enemy04Template, _enemy05Template, _finalBossTemplate] = await Promise.all([
-      load('/assets/models/Q_enemy_01.glb'),
-      load('/assets/models/Q_enemy_02.glb'),
-      load('/assets/models/Q_enemy_03.glb'),
-      load('/assets/models/Q_enemy_04.glb'),
-      load('/assets/models/Q_enemy_05.glb'),
-      load('/assets/models/Q_finalBoss_01.glb'),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_enemy_01.glb`),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_enemy_02.glb`),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_enemy_03.glb`),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_enemy_04.glb`),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_enemy_05.glb`),
+      load(`${import.meta.env.BASE_URL}assets/models/Q_finalBoss_01.glb`),
     ])
   }
 
