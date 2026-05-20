@@ -54,7 +54,18 @@ export class EnemyManager {
     const load = async (url: string) => {
       const gltf = await loader.loadAsync(url)
       const model = gltf.scene as THREE.Group
-      model.traverse(obj => { if (obj instanceof THREE.Mesh) obj.castShadow = true })
+      model.traverse(obj => {
+        if (!(obj instanceof THREE.Mesh)) return
+        obj.castShadow = true
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.metalness = 0.5
+            mat.roughness = 0.5
+            mat.envMapIntensity = 0.5
+          }
+        }
+      })
       return model
     }
     ;[_enemy01Template, _enemy02Template, _enemy03Template,
@@ -195,7 +206,7 @@ export class EnemyManager {
     }
   }
 
-  update(dt: number, playerBoxId: number): { collisionStarted: boolean } {
+  update(dt: number, playerBoxId: number): { collisionStarted: boolean; killedTypes: EnemyType[] } {
     // Tick wave queue — spawn next wave when its delay is reached
     if (this.movementEnabled && !this.frozen) {
       this.waveAccum += dt
@@ -205,6 +216,7 @@ export class EnemyManager {
     }
 
     let collisionStarted = false
+    const killedTypes: EnemyType[] = []
 
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue
@@ -242,6 +254,7 @@ export class EnemyManager {
         if (enemy.collidingTimer > 0) {
           enemy.collidingTimer -= dt
           if (enemy.collidingTimer <= 0) {
+            killedTypes.push(enemy.type)
             enemy.alive = false
             this.scene.remove(enemy.mesh)
             enemy.mesh.traverse(obj => {
@@ -286,6 +299,7 @@ export class EnemyManager {
       if (enemy.collidingTimer > 0) {
         enemy.collidingTimer -= dt
         if (enemy.collidingTimer <= 0) {
+          killedTypes.push(enemy.type)
           enemy.alive = false
           this.scene.remove(enemy.mesh)
           enemy.mesh.traverse(obj => {
@@ -299,11 +313,19 @@ export class EnemyManager {
       }
     }
 
-    return { collisionStarted }
+    return { collisionStarted, killedTypes }
   }
 
   checkCollision(playerBoxId: number): boolean {
     return this.enemies.some(e => e.alive && e.currentBoxId === playerBoxId)
+  }
+
+  private occupiedIds(excludeEnemyId: number): Set<number> {
+    const ids = new Set<number>()
+    for (const e of this.enemies) {
+      if (e.alive && e.id !== excludeEnemyId) ids.add(e.currentBoxId)
+    }
+    return ids
   }
 
   clear(): void {
@@ -351,9 +373,10 @@ export class EnemyManager {
     const player = this.board.getBoxById(playerBoxId)
     if (!current || !player) return
 
+    const occupied = this.occupiedIds(enemy.id)
     const adjacent = this.board.getAdjacentIds(current)
       .map(id => this.board.getBoxById(id)!)
-      .filter(b => Boolean(b) && !this.isPortal(b.id))
+      .filter(b => Boolean(b) && !this.isPortal(b.id) && !occupied.has(b.id))
 
     if (adjacent.length === 0) return
 
@@ -372,10 +395,11 @@ export class EnemyManager {
     const current = this.board.getBoxById(enemy.currentBoxId)
     if (!current) return
 
+    const occupied = this.occupiedIds(enemy.id)
     // Only consider adjacent tiles (no teleport)
     const neighbors = this.board.getAdjacentIds(current)
       .map(id => this.board.getBoxById(id)!)
-      .filter(b => b && b.id !== this.board.safeZoneId && !this.isPortal(b.id))
+      .filter(b => b && b.id !== this.board.safeZoneId && !this.isPortal(b.id) && !occupied.has(b.id))
 
     // Move in current direction (lateralDir +1 = increasing row, -1 = decreasing)
     let targets = neighbors.filter(b => Math.sign(b.row - current.row) === enemy.lateralDir)
@@ -397,8 +421,9 @@ export class EnemyManager {
     const current = this.board.getBoxById(enemy.currentBoxId)
     if (!current) return
 
+    const occupied = this.occupiedIds(enemy.id)
     const adjacent = this.board.getAdjacentIds(current)
-      .filter(id => !this.isPortal(id))
+      .filter(id => !this.isPortal(id) && !occupied.has(id))
     if (adjacent.length === 0) return
 
     const targetId = adjacent[Math.floor(this.rng.next() * adjacent.length)]
@@ -418,9 +443,10 @@ export class EnemyManager {
     const current = this.board.getBoxById(enemy.currentBoxId)
     if (!current) return
 
+    const occupied = this.occupiedIds(enemy.id)
     // Prefers horizontal movement (same row), falls back to random adjacent
     const adjacent = this.board.getAdjacentIds(current)
-      .filter(id => !this.isPortal(id))
+      .filter(id => !this.isPortal(id) && !occupied.has(id))
     const sameRow = adjacent
       .map(id => this.board.getBoxById(id)!)
       .filter(b => b && b.row === current.row)
@@ -464,7 +490,8 @@ export class EnemyManager {
         enemy.mesh.position.set(currentBox.worldPos.x, hoverY, currentBox.worldPos.z)
         enemy.stalkerTimer -= dt
         if (enemy.stalkerTimer <= 0) {
-          const boxes = this.board.boxes.filter(b => !this.isPortal(b.id) && b.id !== this.board.safeZoneId)
+          const occupied = this.occupiedIds(enemy.id)
+          const boxes = this.board.boxes.filter(b => !this.isPortal(b.id) && b.id !== this.board.safeZoneId && !occupied.has(b.id))
           if (boxes.length === 0) break
           const target = boxes[Math.floor(this.rng.next() * boxes.length)]
           enemy.stalkerDiveFrom = enemy.mesh.position.clone()

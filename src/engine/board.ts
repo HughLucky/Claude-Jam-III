@@ -71,6 +71,19 @@ export class Board {
     _tileTemplate.position.y -= bbox.min.y
     _tileTemplate.position.z -= center.z
     _tileTemplate.updateMatrixWorld(true)
+
+    _tileTemplate.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) return
+      obj.receiveShadow = true
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const mat of mats) {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.metalness = 1.0
+          mat.roughness = 1.0
+          mat.envMapIntensity = 1.0
+        }
+      }
+    })
   }
 
   // Level 1 only — fixed pyramid shape
@@ -259,14 +272,14 @@ export class Board {
   private setBoxState(box: HexBox, state: BoxState): void {
     box.state = state
     const color = state === 'highlighted'   ? COLORS.boxHighlighted
-                : state === 'safeZone'      ? 0xffee44
-                : state === 'safeZoneUsed'  ? 0x332211
+                : state === 'safeZone'      ? 0xcc44ff
+                : state === 'safeZoneUsed'  ? 0x1a0033
                 : state === 'portalDown'    ? 0xff6600
                 : state === 'portalUp'      ? 0x00ccff
                 : COLORS.boxDefault
     const emissive = state === 'highlighted'   ? 0x004422
-                   : state === 'safeZone'      ? 0x997700
-                   : state === 'safeZoneUsed'  ? 0x110800
+                   : state === 'safeZone'      ? 0x6600cc
+                   : state === 'safeZoneUsed'  ? 0x0d0022
                    : state === 'portalDown'    ? 0x441100
                    : state === 'portalUp'      ? 0x001144
                    : 0x000000
@@ -388,6 +401,21 @@ export class Board {
 
   setVisible(visible: boolean): void {
     for (const box of this.boxes) box.mesh.visible = visible
+  }
+
+  applyReflectionMap(texture: THREE.Texture): void {
+    for (const box of this.boxes) {
+      box.mesh.traverse(obj => {
+        if (!(obj instanceof THREE.Mesh)) return
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.envMap = texture
+            mat.needsUpdate = true
+          }
+        }
+      })
+    }
   }
 
   designatePortals(hasDown: boolean, hasUp: boolean): void {

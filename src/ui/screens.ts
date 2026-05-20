@@ -4,12 +4,19 @@ import { LevelResult } from '../systems/casino'
 
 const $ = (id: string) => document.getElementById(id)!
 
+
 function el(tag: string, cls: string, html = ''): HTMLElement {
   const e = document.createElement(tag)
   e.className = cls
   e.innerHTML = html
   return e
 }
+
+// ─── Load playful HUD font ────────────────────────────────────────────────────
+const fontLink = document.createElement('link')
+fontLink.rel = 'stylesheet'
+fontLink.href = 'https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap'
+document.head.appendChild(fontLink)
 
 // ─── Inject global CSS once ───────────────────────────────────────────────────
 const style = document.createElement('style')
@@ -79,7 +86,7 @@ style.textContent = `
     background: var(--bg-card);
     border: 1px solid rgba(200,0,255,0.3);
     border-radius: 12px;
-    padding: 1.5em 2em;
+    padding: 3em 4em;
     margin: 0.8em 0;
     min-width: min(600px, 90vw);
     box-shadow: 0 0 30px rgba(100,0,200,0.2);
@@ -97,23 +104,65 @@ style.textContent = `
   .qs-gold { color: var(--gold); }
   /* HUD */
   #hud {
-    position: absolute; top: 0; left: 0; right: 0;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0.6em 1.5em;
-    background: rgba(10,0,20,0.85);
-    border-bottom: 1px solid rgba(200,0,255,0.3);
-    font-family: var(--font);
+    --safe: 1.5rem;
+    position: absolute; inset: 0;
     pointer-events: none;
+    font-family: 'Fredoka One', var(--font);
   }
   #hud.hidden { display: none; }
-  .hud-block { text-align: center; }
-  .hud-label { font-size: 0.6rem; color: rgba(255,255,255,0.4); letter-spacing: 0.2em; text-transform: uppercase; }
-  .hud-value { font-size: 1.1rem; font-weight: 900; color: #fff; }
+  #hud-left-panel {
+    position: absolute; left: var(--safe); top: var(--safe);
+    display: flex; flex-direction: column; justify-content: flex-start; gap: 0.5em;
+    padding: 1.4em 1.8em;
+    background: rgba(10,0,20,0.82);
+    border: 1px solid rgba(200,0,255,0.3);
+    border-radius: 10px;
+    min-width: 140px;
+  }
+  .hud-stat { display: flex; flex-direction: column; }
+  .hud-stat-label { font-size: 0.65rem; color: rgba(255,255,255,0.4); letter-spacing: 0.2em; text-transform: uppercase; }
+  .hud-stat-value { font-size: 2.2rem; font-weight: 900; color: #fff; line-height: 1.1; }
+  .hud-progress-bar { width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 0.15em; }
+  .hud-progress-fill { height: 100%; background: var(--neon-green); border-radius: 3px; transition: width 0.3s; }
+  #hud-timer {
+    position: absolute; top: var(--safe); left: 50%; transform: translateX(-50%);
+    font-size: clamp(2rem, 5vw, 3.3rem); font-weight: 900; color: #fff;
+    text-shadow: 0 0 24px rgba(255,255,255,0.3);
+    letter-spacing: 0.05em; white-space: nowrap;
+  }
   .hud-timer-warn { color: var(--neon-pink) !important; animation: pulse 0.5s infinite alternate; }
-  .hud-progress { display: flex; align-items: center; gap: 0.5em; }
-  .progress-bar { width: 120px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
-  .progress-fill { height: 100%; background: var(--neon-green); border-radius: 4px; transition: width 0.3s; }
   @keyframes pulse { from { opacity: 1; } to { opacity: 0.4; } }
+  #hud-lives-corner { position: absolute; right: var(--safe); top: var(--safe); }
+  #hud-level-badge {
+    position: absolute; left: var(--safe); bottom: var(--safe);
+  }
+  #hud-level-badge > img { display: block; height: 120px; width: auto; }
+  #hud-level-badge .hud-level-label {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', var(--font);
+    line-height: 1.1; gap: 0.05em;
+  }
+  #hud-level-badge .hud-level-title {
+    font-size: 0.75rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.55); text-transform: uppercase;
+  }
+  #hud-level-badge #hud-level {
+    font-size: 3rem; font-weight: 900; color: #fff;
+  }
+  #hud-floor-badge {
+    position: absolute; right: var(--safe); bottom: var(--safe);
+    background: rgba(10,0,20,0.9); border: 1px solid rgba(200,0,255,0.5);
+    border-radius: 8px; padding: 0.5em 1.2em;
+    font-size: 0.9rem; font-weight: 900; color: var(--neon-purple); letter-spacing: 0.1em;
+  }
+  /* Image buttons */
+  .qs-img-btn {
+    background: none; border: none; padding: 0; cursor: pointer; display: block; line-height: 0;
+    transition: transform 0.12s, filter 0.12s;
+  }
+  .qs-img-btn:hover { transform: scale(1.06); filter: brightness(1.15); }
+  .qs-img-btn:active { transform: scale(0.95); filter: brightness(0.85); }
+  .qs-img-btn img { display: block; height: 96px; width: auto; }
   /* Leaderboard table */
   .lb-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
   .lb-table th { color: rgba(255,255,255,0.4); font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 0.4em 0.6em; border-bottom: 1px solid rgba(255,255,255,0.1); }
@@ -144,15 +193,84 @@ style.textContent = `
     transition: background 0.15s;
   }
   .quick-bet-btn:hover { background: rgba(255,215,0,0.2); }
+  .spawn-list { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
+  .spawn-item { display: flex; align-items: center; gap: 0.08em; }
+  .enemy-thumb { height: 52px; width: auto; object-fit: contain; margin-top: 5px; }
+  .spawn-count { font-family: 'Fredoka One', var(--font); font-size: 1.1rem; color: #0d2040; }
+  @keyframes title-breathe {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.04); opacity: 0.82; }
+  }
+  /* Bet screen title — Fredoka One, plain white */
+  #bet-screen .qs-title {
+    font-family: 'Fredoka One', var(--font);
+    background: none; -webkit-text-fill-color: #fff; color: #fff;
+  }
+  #bet-screen .qs-subtitle {
+    font-family: 'Fredoka One', var(--font);
+    color: rgba(255,255,255,0.65);
+  }
+  .bet-title-block { animation: title-breathe 2.8s ease-in-out infinite; }
+  /* Blank panel large — image natural square, content overlaid */
+  .bet-panel { position: relative; width: min(720px, 92vw); }
+  .bet-panel > .bet-panel-bg { display: block; width: 100%; height: auto; pointer-events: none; }
+  .bet-panel > .bet-panel-content {
+    position: absolute; inset: 0; z-index: 1;
+    padding: 2.2em 2.8em;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .bet-panel-title {
+    font-family: 'Fredoka One', var(--font);
+    font-size: 1.55rem; color: #0d2040; letter-spacing: 0.02em; margin-bottom: 0.5em;
+  }
+  .bet-panel-section {
+    font-family: 'Fredoka One', var(--font);
+    font-size: 0.78rem; letter-spacing: 0.2em; color: rgba(13,32,64,0.45);
+    text-transform: uppercase; margin: 0.7em 0 0.3em;
+  }
+  /* Dark text overrides inside the panel */
+  .bet-panel .qs-row { padding: 0.38em 0; border-bottom-color: rgba(13,32,64,0.1); }
+  .bet-panel .qs-label { font-family: 'Fredoka One', var(--font); color: rgba(13,32,64,0.5); font-size: 0.85rem; letter-spacing: 0.07em; }
+  .bet-panel .qs-value { color: #0d2040; font-size: 1rem; font-weight: 900; }
+  .bet-panel .qs-green { color: #005c2e; }
+  .bet-panel .qs-pink  { color: #8b0020; }
+  .bet-panel .qs-purple { color: #42007a; }
+  .bet-panel .qs-gold  { color: #6b4500; }
+  .bet-panel .bet-amount-display { font-family: 'Fredoka One', var(--font); color: #0d2040; font-size: 2.5rem; }
+  .bet-panel .quick-bet-btn {
+    font-family: 'Fredoka One', var(--font); font-size: 1.6rem;
+    border-color: rgba(13,32,64,0.22); background: rgba(13,32,64,0.06); color: #0d2040;
+  }
+  .bet-panel .quick-bet-btn:hover { background: rgba(13,32,64,0.14); }
+  .bet-panel input[type=range] {
+    background: linear-gradient(to right, #0d2040 0%, #0d2040 var(--pct,50%), rgba(13,32,64,0.15) var(--pct,50%), rgba(13,32,64,0.15) 100%);
+  }
+  .bet-panel input[type=range]::-webkit-slider-thumb { background: #0d2040; box-shadow: 0 0 6px rgba(13,32,64,0.4); }
+  .bet-panel .odds-block { display: flex; flex-direction: column; align-items: center; background: rgba(13,32,64,0.06); }
+  .bet-panel .odds-block .odds-label { font-family: 'Fredoka One', var(--font); color: rgba(13,32,64,0.75); font-size: 1.5rem; text-transform: none; letter-spacing: 0; }
+  .bet-panel .odds-block .odds-val { font-family: 'Fredoka One', var(--font); color: #0d2040; font-size: 1.6rem; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+  .bet-panel .odds-block .qs-pink  { color: #8b0020; }
+  .bet-panel .odds-block .qs-green { color: #005c2e; }
+  .bet-panel .odds-block .qs-gold  { color: #6b4500; }
+  .bet-panel-divider { border: none; border-top: 1px solid rgba(13,32,64,0.15); width: 75%; margin: 0.9em auto; }
   .odds-row { display: flex; justify-content: space-between; gap: 1em; margin-top: 0.8em; }
   .odds-block { flex: 1; text-align: center; padding: 0.6em; border-radius: 6px; background: rgba(255,255,255,0.04); }
   .odds-block .odds-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
   .odds-block .odds-val { font-size: 1rem; font-weight: 900; margin-top: 0.2em; }
-  .hud-floor { font-size: 0.9rem; font-weight: 900; color: var(--neon-purple); }
   /* Lives display */
-  .hud-lives { display: flex; align-items: center; gap: 0.35em; }
+  .hud-lives { display: flex; align-items: center; gap: 0.4em; }
+  .hud-lives-l { font-size: 1rem; font-weight: 900; color: rgba(255,255,255,0.5); letter-spacing: 0.05em; margin-right: 0.1em; }
+  .hud-lives-bankroll {
+    display: flex; align-items: center; gap: 0.3em;
+    margin-right: 0.6em;
+    padding-right: 0.7em;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  .hud-lives-bankroll img { height: 48px; width: auto; transform: translateX(-14px); }
+  .hud-lives-bankroll span { font-size: 3rem; font-weight: 900; color: var(--neon-green); letter-spacing: 0.03em; transform: translateX(-3px); display: inline-block; }
   .life-pip {
-    width: 22px; height: 22px; object-fit: contain;
+    width: 48px; height: 48px; object-fit: contain;
     transition: opacity 0.3s;
   }
   .life-pip.lost { opacity: 0.15; }
@@ -203,6 +321,18 @@ style.textContent = `
   .safe-zone-dialog .szd-row .qs-btn { width: auto; min-width: 120px; font-size: 0.95rem; }
   @keyframes toastIn  { from { opacity:0; transform:translate(-50%,-44%) scale(0.88); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
   @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translate(-50%,-56%) scale(0.92); } }
+  /* Level Complete panel */
+  .lc-section-title {
+    font-family: 'Fredoka One', var(--font);
+    font-size: 1.56rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: rgba(13,32,64,0.45); margin: 0 0 0.3em;
+  }
+  .lc-grid {
+    display: grid; grid-template-columns: auto 1fr; gap: 0 1.2em;
+    align-items: center; padding: 0.22em 0;
+  }
+  .lc-label { font-family: 'Fredoka One', var(--font); font-size: 1.7rem; color: rgba(13,32,64,0.5); }
+  .lc-value { font-family: 'Fredoka One', var(--font); font-size: 2rem; color: #0d2040; font-weight: 900; text-align: right; }
 `
 document.head.appendChild(style)
 
@@ -210,33 +340,39 @@ document.head.appendChild(style)
 export function buildSplashScreen(
   onPlay: () => void,
   onLeaderboard: () => void,
-  bestScore: number,
-  bestLevel: number,
+  savedSession: { bankroll: number; level: number } | null,
+  onContinue: () => void,
   onDebugLevel?: (level: number) => void,
 ): HTMLElement {
   const screen = el('div', 'qs-screen')
   screen.id = 'splash-screen'
   screen.style.cssText = 'background:none; justify-content:flex-end;'
   screen.innerHTML = `
-    <img src="${import.meta.env.BASE_URL}assets/images/hero16-9.png" alt="Quack-Stack"
+    <img src="${import.meta.env.BASE_URL}assets/images/Quack-Stack_heroImage16-9_02.png" alt="Quack-Stack"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;">
     <div style="position:relative;z-index:1;width:100%;
-                padding:2em 2em 1.6em;
+                padding:4em 4em 3.2em;
                 background:linear-gradient(to top, rgba(10,0,18,0.92) 60%, transparent 100%);
                 display:flex;flex-direction:column;align-items:center;gap:0.6em;">
-      <div style="display:flex;gap:1em;flex-wrap:wrap;justify-content:center;">
-        <button class="qs-btn qs-btn-primary interactive" id="btn-play"
-                style="margin:0;width:220px;">▶&nbsp; Play</button>
-        <button class="qs-btn qs-btn-secondary interactive" id="btn-lb"
-                style="margin:0;width:220px;">🏆&nbsp; Leaderboard</button>
-      </div>
-      ${bestScore > 0 ? `<div style="font-size:0.72rem;color:rgba(255,255,255,0.35);letter-spacing:0.2em;font-family:var(--font);">
-        ALL-TIME BEST:&nbsp; $${bestScore.toLocaleString()} &nbsp;·&nbsp; LEVEL ${bestLevel}
+      ${savedSession ? `<div style="font-size:0.75rem;color:rgba(255,215,0,0.7);letter-spacing:0.15em;margin-bottom:0.2em;">
+        SAVED: LEVEL ${savedSession.level} &nbsp;·&nbsp; $${savedSession.bankroll.toLocaleString()}
       </div>` : ''}
+      <div style="display:flex;gap:1.2em;flex-wrap:wrap;justify-content:center;align-items:center;">
+        <button class="qs-img-btn interactive" id="btn-continue">
+          <img src="${import.meta.env.BASE_URL}assets/images/UI_continueButton.png" alt="Continue">
+        </button>
+        <button class="qs-img-btn interactive" id="btn-play">
+          <img src="${import.meta.env.BASE_URL}assets/images/UI_newGameButton.png" alt="New Game">
+        </button>
+        <button class="qs-img-btn interactive" id="btn-lb">
+          <img src="${import.meta.env.BASE_URL}assets/images/UI_leaderboardButton.png" alt="Leaderboard">
+        </button>
+      </div>
     </div>
   `
   screen.querySelector('#btn-play')!.addEventListener('click', onPlay)
   screen.querySelector('#btn-lb')!.addEventListener('click', onLeaderboard)
+  screen.querySelector('#btn-continue')!.addEventListener('click', onContinue)
 
   if (onDebugLevel) screen.appendChild(buildDebugPanel(onDebugLevel))
 
@@ -314,45 +450,39 @@ export function buildLeaderboardScreen(
   const screen = el('div', 'qs-screen')
   screen.id = 'leaderboard-screen'
 
-  const isPlayerRow = (e: LeaderboardEntry) =>
-    playerEntry !== null && !e.fake &&
-    e.initials === playerEntry.initials &&
-    e.score === playerEntry.score &&
-    e.level === playerEntry.level
-
   const rows = entries.slice(0, 10).map((e, i) => {
-    const isPlayer = isPlayerRow(e)
-    const cls = isPlayer ? ' class="lb-player-row"' : ''
-    const rankCell = isPlayer
-      ? `<td class="lb-rank">▶ ${i + 1}</td>`
-      : `<td class="lb-rank">${i + 1}</td>`
-    return `<tr${cls}>${rankCell}<td class="${isPlayer ? '' : 'lb-gold'}">${e.initials}</td>
-        <td>$${e.score.toLocaleString()}</td><td>${e.level}</td></tr>`
+    const isPlayer = playerEntry !== null && !e.fake &&
+      e.initials === playerEntry.initials &&
+      e.score === playerEntry.score &&
+      e.level === playerEntry.level
+    return `<tr${isPlayer ? ' class="lb-player-row"' : ''}>
+      <td class="lb-rank">${isPlayer ? '▶' : ''} ${i + 1}</td>
+      <td class="${isPlayer ? '' : 'lb-gold'}">${e.initials}</td>
+      <td>$${e.score.toLocaleString()}</td><td>${e.level}</td></tr>`
   }).join('')
 
-  const extraRow = playerEntry && playerRank !== null && playerRank > 10
-    ? `<tr class="lb-player-row">
-        <td class="lb-rank">▶ ${playerRank}</td><td>${playerEntry.initials}</td>
-        <td>$${playerEntry.score.toLocaleString()}</td><td>${playerEntry.level}</td>
-       </tr>`
-    : ''
+  const playerRow = playerEntry && playerRank !== null && playerRank > 10 ? `
+    <tr><td colspan="4" style="border-top:1px solid rgba(255,215,0,0.3);padding:0;"></td></tr>
+    <tr class="lb-player-row">
+      <td class="lb-rank">▶ ${playerRank}</td><td>${playerEntry.initials}</td>
+      <td>$${playerEntry.score.toLocaleString()}</td><td>${playerEntry.level}</td>
+    </tr>` : ''
 
-  const statsCard = playerEntry
-    ? `<div class="qs-card" style="width:min(480px,90vw);display:flex;justify-content:space-around;padding:0.8em 1.2em;margin-bottom:0.8em;">
-        <div style="text-align:center;">
-          <div class="hud-label">All-Time Best</div>
-          <div class="qs-gold" style="font-size:1.2rem;font-weight:900;">$${playerEntry.score.toLocaleString()}</div>
-        </div>
-        <div style="text-align:center;">
-          <div class="hud-label">Best Level</div>
-          <div style="font-size:1.2rem;font-weight:900;color:#fff;">${playerEntry.level}</div>
-        </div>
-        <div style="text-align:center;">
-          <div class="hud-label">Rank</div>
-          <div style="font-size:1.2rem;font-weight:900;color:#fff;">#${playerRank}</div>
-        </div>
-      </div>`
-    : ''
+  const statsCard = playerEntry && playerRank !== null ? `
+    <div class="qs-card" style="width:min(480px,90vw);display:flex;justify-content:space-around;padding:0.8em 1.2em;margin-bottom:0.8em;">
+      <div style="text-align:center;">
+        <div class="hud-label">All-Time Best</div>
+        <div class="qs-gold" style="font-size:1.2rem;font-weight:900;">$${playerEntry.score.toLocaleString()}</div>
+      </div>
+      <div style="text-align:center;">
+        <div class="hud-label">Best Level</div>
+        <div style="font-size:1.2rem;font-weight:900;color:#fff;">${playerEntry.level}</div>
+      </div>
+      <div style="text-align:center;">
+        <div class="hud-label">Rank</div>
+        <div style="font-size:1.2rem;font-weight:900;color:#fff;">#${playerRank}</div>
+      </div>
+    </div>` : ''
 
   screen.innerHTML = `
     <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);margin-bottom:0.6em;">Leaderboard</div>
@@ -360,10 +490,12 @@ export function buildLeaderboardScreen(
     <div class="qs-card">
       <table class="lb-table">
         <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
-        <tbody>${rows}${extraRow}</tbody>
+        <tbody>${rows}${playerRow}</tbody>
       </table>
     </div>
-    <button class="qs-btn qs-btn-secondary interactive" id="btn-back-lb" style="margin-top:1em;">← Back</button>
+    <button class="qs-img-btn interactive" id="btn-back-lb" style="margin-top:1em;">
+      <img src="${import.meta.env.BASE_URL}assets/images/UI_backButton.png" alt="Back">
+    </button>
   `
   screen.querySelector('#btn-back-lb')!.addEventListener('click', onBack)
   return screen
@@ -376,49 +508,82 @@ export function buildBetScreen(
   minBet: number,
   maxBet: number,
   onConfirm: (bet: number) => void,
+  onQuit: () => void,
+  lives = 3,
 ): HTMLElement {
   const screen = el('div', 'qs-screen')
   screen.id = 'bet-screen'
 
-  const spawnLines = config.enemySpawns
+  const spawnItems = config.enemySpawns
     .filter(s => s.count > 0)
-    .map(s => `<div class="qs-row"><span class="qs-label">${enemyLabel(s.type)}</span><span class="qs-value">${s.count}×</span></div>`)
+    .map(s => `<div class="spawn-item">
+      <img class="enemy-thumb" src="${import.meta.env.BASE_URL}assets/images/${enemyImage(s.type)}" alt="${s.type}">
+      <span class="spawn-count">${s.count}×</span>
+    </div>`)
     .join('')
+  const spawnLines = `<div class="spawn-list">${spawnItems}</div>`
+
+  const lifePips = [3,2,1].map(i =>
+    `<img class="life-pip${i > lives ? ' lost' : ''}" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">`
+  ).join('')
 
   screen.innerHTML = `
-    <div class="qs-title" style="font-size:clamp(1.2rem,3vw,2rem);margin-bottom:0.1em;">Level ${config.level}</div>
-    <div class="qs-subtitle" style="margin-bottom:1em;">${tierLabel(config.tier)}</div>
-    <div style="display:flex;gap:1em;flex-wrap:wrap;justify-content:center;width:min(800px,95vw);">
-      <div class="qs-card" style="flex:1;min-width:220px;">
-        <div style="font-size:0.7rem;letter-spacing:0.2em;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:0.6em;">Level Intel</div>
-        <div class="qs-row"><span class="qs-label">Floors</span><span class="qs-value">${config.floorCount}</span></div>
-        <div class="qs-row"><span class="qs-label">Tiles/Floor</span><span class="qs-value">${config.tilesPerFloor}</span></div>
-        <div class="qs-row"><span class="qs-label">Time Limit</span><span class="qs-value">${formatTime(config.timeLimit)}</span></div>
-        <div class="qs-row"><span class="qs-label">Enemy Speed</span><span class="qs-value">${speedLabel(config.enemySpeed)}</span></div>
-        <div style="margin-top:0.8em;font-size:0.7rem;letter-spacing:0.2em;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:0.4em;">Spawns</div>
-        ${spawnLines}
-      </div>
-      <div class="qs-card" style="flex:1;min-width:220px;">
-        <div style="font-size:0.7rem;letter-spacing:0.2em;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:0.6em;">Community Odds</div>
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.3);margin-bottom:0.6em;">Based on ${fakeRunCount(config.level).toLocaleString()} runs</div>
-        <div class="qs-row"><span class="qs-label">✓ Completion rate</span><span class="qs-green">${fakeWinRate(config.level)}%</span></div>
-        <div class="qs-row"><span class="qs-label">💀 Bust rate</span><span class="qs-pink">${fakeBustRate(config.level)}%</span></div>
-        <div class="qs-row"><span class="qs-label">💸 Cash-out rate</span><span class="qs-purple">${100 - fakeWinRate(config.level) - fakeBustRate(config.level)}%</span></div>
-      </div>
+    <div class="bet-title-block" style="position:absolute;top:calc(1.8rem + 42px);left:0;right:0;text-align:center;z-index:1;pointer-events:none;">
+      <div class="qs-title" style="font-size:clamp(2.1rem,5.25vw,3.3rem);margin-bottom:0.1em;">Level ${config.level}</div>
+      <div class="qs-subtitle" style="margin-bottom:0;font-size:clamp(1.2rem,3vw,1.65rem);">${tierLabel(config.tier)}</div>
     </div>
-    <div class="qs-card" style="width:min(600px,90vw);">
-      <div class="qs-row"><span class="qs-label">Your Bankroll</span><span class="qs-gold" style="font-size:1.3rem;">$<span id="bankroll-display">${bankroll.toLocaleString()}</span></span></div>
-      <div style="margin: 1em 0 0.3em;">
-        <div class="bet-amount-display">$<span id="bet-display">${minBet}</span></div>
-        <input type="range" id="bet-slider" min="${minBet}" max="${maxBet}" value="${minBet}" step="10" style="--pct:0%;">
-        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:rgba(255,255,255,0.3);margin-top:0.2em;">
-          <span>MIN $${minBet}</span><span>MAX $${maxBet}</span>
+    <div style="position:absolute;top:1.5rem;right:1.5rem;z-index:2;pointer-events:none;">
+      <div class="hud-lives">
+        <div class="hud-lives-bankroll">
+          <img src="${import.meta.env.BASE_URL}assets/images/UI_bankrollIcon02.png" alt="Bankroll">
+          <span style="font-family:'Fredoka One',var(--font);font-size:3rem;font-weight:900;color:var(--neon-green);transform:translateX(-3px);display:inline-block;">${bankroll.toLocaleString()}</span>
         </div>
+        ${lifePips}
       </div>
-      <div class="quick-bets" id="quick-bets"></div>
-      <div class="odds-row" id="odds-row"></div>
     </div>
-    <button class="qs-btn qs-btn-primary interactive" id="btn-place-bet" style="margin-top:0.5em;">Place Bet &amp; Play ▶</button>
+    <div class="bet-panel">
+      <img class="bet-panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanelLarge.png" alt="">
+      <div class="bet-panel-content">
+        <div style="display:flex;gap:2.8em;flex:1;margin-top:15px;">
+          <div style="flex:1;padding-left:8px;">
+            <div class="bet-panel-title">Level Intel</div>
+            <div class="qs-row"><span class="qs-label">Floors</span><span class="qs-value">${config.floorCount}</span></div>
+            <div class="qs-row"><span class="qs-label">Tiles / Floor</span><span class="qs-value">${config.tilesPerFloor}</span></div>
+            <div class="qs-row"><span class="qs-label">Time Limit</span><span class="qs-value">${formatTime(config.timeLimit)}</span></div>
+            <div class="qs-row"><span class="qs-label">Enemy Speed</span><span class="qs-value">${speedLabel(config.enemySpeed)}</span></div>
+            <div class="bet-panel-section" style="margin-top:calc(0.7em + 8px);">Spawns</div>
+            ${spawnLines}
+          </div>
+          <div style="flex:1;padding-right:8px;">
+            <div class="bet-panel-title">Community Odds</div>
+            <div style="font-family:'Fredoka One',var(--font);font-size:0.78rem;color:rgba(13,32,64,0.38);margin-bottom:0.7em;">Based on ${fakeRunCount(config.level).toLocaleString()} runs</div>
+            <div class="qs-row"><span class="qs-label">Completion</span><span class="qs-green" style="font-size:1.1rem;font-weight:900;">${fakeWinRate(config.level)}%</span></div>
+            <div class="qs-row"><span class="qs-label">Bust</span><span class="qs-pink" style="font-size:1.1rem;font-weight:900;">${fakeBustRate(config.level)}%</span></div>
+            <div class="qs-row"><span class="qs-label">Cash-out</span><span class="qs-purple" style="font-size:1.1rem;font-weight:900;">${100 - fakeWinRate(config.level) - fakeBustRate(config.level)}%</span></div>
+          </div>
+        </div>
+        <hr class="bet-panel-divider">
+        <div style="margin:0.4em 0 0.2em;">
+          <div class="bet-amount-display">Bet Amount $<span id="bet-display">${minBet}</span></div>
+          <div style="width:75%;margin:0 auto;">
+            <input type="range" id="bet-slider" min="${minBet}" max="${maxBet}" value="${minBet}" step="10" style="--pct:0%;width:100%;">
+            <div style="display:flex;justify-content:space-between;font-family:'Fredoka One',var(--font);font-size:0.72rem;color:rgba(13,32,64,0.35);margin-top:0.15em;">
+              <span>Min $${minBet}</span><span>Max $${maxBet}</span>
+            </div>
+          </div>
+        </div>
+        <div class="quick-bets" id="quick-bets"></div>
+        <div class="odds-row" id="odds-row"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:1.2em;justify-content:center;align-items:center;margin-top:2.8em;">
+      <button class="qs-img-btn interactive" id="btn-place-bet">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_betNPlayButton.png" alt="Bet & Play">
+      </button>
+      <button class="qs-img-btn interactive" id="btn-quit">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_quitButton.png" alt="Quit">
+      </button>
+    </div>
   `
 
   // Slider logic
@@ -445,9 +610,9 @@ export function buildBetScreen(
     const avgWin = Math.round(bet * 1.64)
     const best = Math.round(bet * 6.5)
     oddsRow.innerHTML = `
-      <div class="odds-block"><div class="odds-label">💀 Bust</div><div class="odds-val qs-pink">–$${bet}</div></div>
-      <div class="odds-block"><div class="odds-label">💸 Avg Win</div><div class="odds-val qs-green">+$${avgWin}</div></div>
-      <div class="odds-block"><div class="odds-label">🎰 Best Run</div><div class="odds-val qs-gold">+$${best}</div></div>
+      <div class="odds-block"><div class="odds-label">Bust</div><div class="odds-val qs-pink">–$${bet}</div></div>
+      <div class="odds-block"><div class="odds-label">Avg Win</div><div class="odds-val qs-green">+$${avgWin}</div></div>
+      <div class="odds-block"><div class="odds-label">Best Run</div><div class="odds-val qs-gold">+$${best}</div></div>
     `
   }
 
@@ -465,6 +630,7 @@ export function buildBetScreen(
   screen.querySelector('#btn-place-bet')!.addEventListener('click', () => {
     onConfirm(parseInt(slider.value))
   })
+  screen.querySelector('#btn-quit')!.addEventListener('click', onQuit)
 
   return screen
 }
@@ -475,32 +641,49 @@ export function buildHUD(): HTMLElement {
   hud.id = 'hud'
   hud.classList.add('hidden')
   hud.innerHTML = `
-    <div class="hud-block"><div class="hud-label">Level</div><div class="hud-value" id="hud-level">1</div></div>
-    <div class="hud-block" id="hud-floor-block">
-      <div class="hud-label">Floor</div>
-      <div class="hud-value hud-floor" id="hud-floor">—</div>
-    </div>
-    <div class="hud-block"><div class="hud-label">Timer</div><div class="hud-value" id="hud-timer">2:00</div></div>
-    <div class="hud-block hud-progress">
-      <div>
-        <div class="hud-label">Progress</div>
-        <div style="display:flex;align-items:center;gap:0.5em;">
-          <div class="progress-bar"><div class="progress-fill" id="hud-progress-fill" style="width:0%"></div></div>
-          <div class="hud-value" id="hud-progress-text">0/21</div>
-        </div>
+    <div id="hud-left-panel">
+      <div class="hud-stat">
+        <span class="hud-stat-label">Bet</span>
+        <span class="hud-stat-value" id="hud-bet">$0</span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-label">Avg Mult</span>
+        <span class="hud-stat-value qs-gold" id="hud-mult">—</span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-label">Progress</span>
+        <span class="hud-stat-value" id="hud-progress-text">0/21</span>
+        <div class="hud-progress-bar"><div class="hud-progress-fill" id="hud-progress-fill" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="hud-block">
-      <div class="hud-label">Lives</div>
+    <div id="hud-timer">2:00</div>
+    <div id="hud-lives-corner">
       <div class="hud-lives" id="hud-lives">
+        <div class="hud-lives-bankroll">
+          <img src="${import.meta.env.BASE_URL}assets/images/UI_bankrollIcon02.png" alt="Bankroll">
+          <span id="hud-corner-bankroll">1,000</span>
+        </div>
         <img class="life-pip" id="life-pip-3" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
         <img class="life-pip" id="life-pip-2" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
         <img class="life-pip" id="life-pip-1" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
       </div>
     </div>
-    <div class="hud-block"><div class="hud-label">Avg Mult</div><div class="hud-value qs-gold" id="hud-mult">—</div></div>
-    <div class="hud-block"><div class="hud-label">Bankroll</div><div class="hud-value qs-green" id="hud-bankroll">$1,000</div></div>
-    <div class="hud-block"><div class="hud-label">Bet</div><div class="hud-value" id="hud-bet">$0</div></div>
+    <div id="hud-level-badge">
+      <img src="${import.meta.env.BASE_URL}assets/images/UI_blankPanel.png" alt="">
+      <div class="hud-level-label">
+        <span class="hud-level-title">LEVEL</span>
+        <span id="hud-level">1</span>
+      </div>
+    </div>
+    <div id="hud-floor-badge" style="display:none;">FLOOR <span id="hud-floor">1/1</span></div>
+    <div id="hud-enemy-bar" style="position:absolute;bottom:var(--safe);left:calc(var(--safe) + 148px);display:flex;align-items:flex-end;gap:4px;"></div>
+    <button id="hud-debug-autocomplete" style="
+      position:absolute; bottom:calc(var(--safe) + 148px); left:50%; transform:translateX(-50%);
+      background:rgba(180,0,40,0.88); border:2px solid #ff0066; border-radius:6px;
+      color:#fff; font-family:monospace; font-size:0.7rem; font-weight:900;
+      letter-spacing:0.12em; padding:0.35em 1em; cursor:pointer; z-index:10;
+      pointer-events:auto; white-space:nowrap;
+    ">DEBUG: AUTO-COMPLETE</button>
   `
   return hud
 }
@@ -517,23 +700,25 @@ export function updateHUD(level: number, timeLeft: number, filled: number, total
   if (hudLevel) hudLevel.textContent = String(level)
   if (hudTimer) {
     hudTimer.textContent = formatTime(Math.ceil(timeLeft))
-    hudTimer.className = `hud-value${timeLeft <= 30 ? ' hud-timer-warn' : ''}`
+    hudTimer.className = timeLeft <= 30 ? 'hud-timer-warn' : ''
   }
   if (hudFill) hudFill.style.width = `${(filled / total) * 100}%`
   if (hudText) hudText.textContent = `${filled}/${total}`
   if (hudMult) hudMult.textContent = avgMult > 0 ? `${avgMult.toFixed(2)}x` : '—'
   if (hudBankroll) hudBankroll.textContent = `$${bankroll.toLocaleString()}`
   if (hudBet) hudBet.textContent = `$${bet.toLocaleString()}`
+  const cornerBankroll = document.getElementById('hud-corner-bankroll')
+  if (cornerBankroll) cornerBankroll.textContent = `${bankroll.toLocaleString()}`
 
   for (let i = 1; i <= 3; i++) {
     const pip = $(`life-pip-${i}`) as HTMLElement | null
     if (pip) pip.className = `life-pip${i > lives ? ' lost' : ''}`
   }
 
-  const floorBlock = document.getElementById('hud-floor-block') as HTMLElement | null
+  const floorBadge = document.getElementById('hud-floor-badge') as HTMLElement | null
   const hudFloor = document.getElementById('hud-floor')
-  if (floorBlock) floorBlock.style.display = floorCount > 1 ? '' : 'none'
-  if (hudFloor) hudFloor.textContent = floorCount > 1 ? `${floor} / ${floorCount}` : '—'
+  if (floorBadge) floorBadge.style.display = floorCount > 1 ? '' : 'none'
+  if (hudFloor) hudFloor.textContent = `${floor} / ${floorCount}`
 }
 
 export function showLifeLostToast(uiRoot: HTMLElement, livesRemaining: number): void {
@@ -543,7 +728,7 @@ export function showLifeLostToast(uiRoot: HTMLElement, livesRemaining: number): 
     `<img class="llt-pip${i > livesRemaining ? ' lost' : ''}" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">`
   ).join('')
   toast.innerHTML = `
-    <div class="llt-title">💀 Life Lost</div>
+    <div class="llt-title">Life Lost</div>
     <div class="llt-lives">${pips}</div>
   `
   uiRoot.appendChild(toast)
@@ -563,11 +748,11 @@ export function showSafeZoneDialog(
   const pct = Math.round(elapsedRatio * 100)
   const payoutText = previewPayout > 0 ? `+$${previewPayout.toLocaleString()}` : '$0'
   dialog.innerHTML = `
-    <h3>💰 Safe Zone</h3>
+    <h3>Safe Zone</h3>
     <div class="szd-payout">${payoutText}</div>
     <div class="szd-sub">${pct}% time · ${avgMult > 0 ? avgMult.toFixed(2) + 'x avg' : 'no tiles yet'}</div>
     <div class="szd-row">
-      <button class="qs-btn qs-btn-primary szd-cashout">💰 Cash Out</button>
+      <button class="qs-btn qs-btn-primary szd-cashout">Cash Out</button>
       <button class="qs-btn qs-btn-secondary szd-keep">▶ Keep Playing</button>
     </div>
   `
@@ -580,7 +765,7 @@ export function showSafeZoneDialog(
 export function showSafeZoneResult(uiRoot: HTMLElement, payout: number): void {
   const toast = el('div', 'safe-zone-toast')
   toast.innerHTML = `
-    <h3>💰 Cashed Out!</h3>
+    <h3>Cashed Out!</h3>
     <div class="payout">+$${payout.toLocaleString()}</div>
     <div class="sub">Resetting level…</div>
   `
@@ -593,33 +778,72 @@ export function buildLevelCompleteScreen(
   result: LevelResult,
   newBankroll: number,
   onNext: () => void,
+  onRetry: () => void,
+  onMainMenu: () => void,
 ): HTMLElement {
   const screen = el('div', 'qs-screen')
   screen.id = 'level-complete-screen'
-  const multList = result.revealedMultipliers
-    .map(m => `<span style="padding:0.2em 0.4em;border-radius:3px;background:rgba(0,255,136,0.1);color:var(--neon-green);font-size:0.85rem;">${m}x</span>`)
-    .join(' ')
 
   const prev = newBankroll - result.payout
+  const avgMult = result.revealedMultipliers.reduce((a, b) => a + b, 0) / result.revealedMultipliers.length
+  const multListDark = result.revealedMultipliers
+    .map(m => `<span style="padding:0.2em 0.5em;border-radius:4px;background:rgba(0,92,46,0.12);color:#005c2e;font-family:'Fredoka One',var(--font);font-size:1rem;">${m}x</span>`)
+    .join(' ')
+
   screen.innerHTML = `
-    <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);">Level Complete! 🎉</div>
-    <div class="qs-card" style="width:min(600px,90vw);">
-      <div style="margin-bottom:0.8em;font-size:0.7rem;letter-spacing:0.2em;color:rgba(255,255,255,0.4);text-transform:uppercase;">Multipliers Revealed</div>
-      <div style="display:flex;flex-wrap:wrap;gap:0.4em;margin-bottom:1em;">${multList}</div>
-      <div class="qs-row"><span class="qs-label">Bet</span><span class="qs-value">$${result.bet.toLocaleString()}</span></div>
-      <div class="qs-row"><span class="qs-label">Avg Multiplier</span><span class="qs-value">${(result.revealedMultipliers.reduce((a,b)=>a+b,0)/result.revealedMultipliers.length).toFixed(2)}x</span></div>
-      <div class="qs-row"><span class="qs-label">Completion Bonus</span><span class="qs-value">${result.completed ? '2.0x' : '1.0x'}</span></div>
-      <div class="qs-row" style="border-top:1px solid rgba(255,255,255,0.15);margin-top:0.4em;padding-top:0.8em;">
-        <span class="qs-label">Payout</span><span class="qs-gold" style="font-size:1.4rem;">+$${result.payout.toLocaleString()}</span>
+    <div class="bet-title-block" style="position:absolute;top:calc(1.8rem + 42px);left:0;right:0;text-align:center;z-index:1;pointer-events:none;">
+      <div style="font-family:'Fredoka One',var(--font);font-size:clamp(2.1rem,5.25vw,3.3rem);color:#fff;margin-bottom:0.1em;">Level Complete!</div>
+    </div>
+    <div class="bet-panel">
+      <img class="bet-panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanelLarge.png" alt="">
+      <div class="bet-panel-content" style="margin-top:40px;">
+        <div style="margin-left:7px;">
+          <div class="lc-section-title">Multipliers Revealed</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.4em;margin:0.3em 0 0.7em;">${multListDark}</div>
+        </div>
+        <div style="margin-top:60px;">
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">Bet</span>
+            <span class="lc-value">$${result.bet.toLocaleString()}</span>
+          </div>
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">Avg Multiplier</span>
+            <span class="lc-value">${avgMult.toFixed(2)}x</span>
+          </div>
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">Completion Bonus</span>
+            <span class="lc-value">${result.completed ? '2.0x' : '1.0x'}</span>
+          </div>
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">Payout</span>
+            <span class="lc-value" style="color:#6b4500;">+$${result.payout.toLocaleString()}</span>
+          </div>
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">Previous</span>
+            <span class="lc-value">$${prev.toLocaleString()}</span>
+          </div>
+          <div class="lc-grid" style="padding-left:10px;padding-right:10px;">
+            <span class="lc-label">New Bankroll</span>
+            <span class="lc-value" style="color:#005c2e;">$${newBankroll.toLocaleString()}</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="qs-card" style="width:min(600px,90vw);">
-      <div class="qs-row"><span class="qs-label">Previous Bankroll</span><span class="qs-value">$${prev.toLocaleString()}</span></div>
-      <div class="qs-row"><span class="qs-label">New Bankroll</span><span class="qs-green" style="font-size:1.2rem;">$${newBankroll.toLocaleString()}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;width:min(720px,92vw);margin-top:2.8em;">
+      <button class="qs-img-btn interactive" id="btn-next">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_continueButton.png" alt="Continue" style="height:83px;">
+      </button>
+      <button class="qs-img-btn interactive" id="btn-retry">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_retryButton.png" alt="Retry" style="height:83px;">
+      </button>
+      <button class="qs-img-btn interactive" id="btn-menu">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_mainMenuButton.png" alt="Main Menu" style="height:83px;">
+      </button>
     </div>
-    <button class="qs-btn qs-btn-primary interactive" id="btn-next" style="margin-top:0.5em;">Next Level ▶</button>
   `
   screen.querySelector('#btn-next')!.addEventListener('click', onNext)
+  screen.querySelector('#btn-retry')!.addEventListener('click', onRetry)
+  screen.querySelector('#btn-menu')!.addEventListener('click', onMainMenu)
   return screen
 }
 
@@ -685,6 +909,32 @@ export function buildGameOverScreen(
   return screen
 }
 
+export function setHUDEnemies(spawns: { type: string; count: number }[]): void {
+  const bar = document.getElementById('hud-enemy-bar')
+  if (!bar) return
+  let idx = 0
+  bar.innerHTML = spawns
+    .filter(s => s.count > 0)
+    .flatMap(s => Array.from({ length: s.count }, () => {
+      const i = idx++
+      return `<img id="hud-ei-${i}" data-type="${s.type}" data-dead="0"
+        src="${import.meta.env.BASE_URL}assets/images/${enemyImage(s.type)}"
+        style="height:40px;width:auto;object-fit:contain;transition:filter 0.4s,opacity 0.4s;">`
+    }))
+    .join('')
+}
+
+export function markHUDEnemyDied(type: string): void {
+  const bar = document.getElementById('hud-enemy-bar')
+  if (!bar) return
+  const icon = bar.querySelector<HTMLElement>(`img[data-type="${type}"][data-dead="0"]`)
+  if (icon) {
+    icon.dataset.dead = '1'
+    icon.style.filter = 'grayscale(1) brightness(0.2)'
+    icon.style.opacity = '0.35'
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -701,14 +951,16 @@ function speedLabel(speed: number): string {
   return 'MAX'
 }
 
-function enemyLabel(type: string): string {
+function enemyImage(type: string): string {
   const map: Record<string, string> = {
-    chaser:  '🂡 Card Shark (chaser)',
-    bouncer: '🎲 Lucky Chip (bouncer)',
-    eraser:  '🃟 Wild Card (eraser)',
-    lateral: '🂿 Joker (lateral)',
+    chaser:  'enemy_01.png',
+    bouncer: 'enemy_02.png',
+    eraser:  'enemy_03.png',
+    lateral: 'enemy_04.png',
+    stalker: 'enemy_05.png',
+    boss:    'finalboss.png',
   }
-  return map[type] ?? type
+  return map[type] ?? 'enemy_01.png'
 }
 
 function fakeWinRate(level: number): number {

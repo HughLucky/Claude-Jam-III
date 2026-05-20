@@ -9,6 +9,12 @@ export class Renderer {
   private container: HTMLElement
   private frustumSize = 12
 
+  private cubeRenderTarget: THREE.WebGLCubeRenderTarget
+  private cubeCamera: THREE.CubeCamera
+  private _reflFrame = 0
+  private roomEnvTexture: THREE.Texture | null = null
+  private bgLoader = new THREE.TextureLoader()
+
   constructor(container: HTMLElement) {
     this.container = container
     this.scene = new THREE.Scene()
@@ -18,7 +24,17 @@ export class Renderer {
     this.renderer.setPixelRatio(window.devicePixelRatio)
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 0.8
     container.appendChild(this.renderer.domElement)
+
+    this.cubeRenderTarget = new THREE.WebGLCubeRenderTarget(128, {
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+    })
+    this.cubeCamera = new THREE.CubeCamera(0.1, 50, this.cubeRenderTarget)
+    this.cubeCamera.position.set(0, 1.5, 0)
+    this.scene.add(this.cubeCamera)
 
     this.camera = this.createIsometricCamera()
     this.setupLighting()
@@ -46,7 +62,7 @@ export class Renderer {
   }
 
   private setupLighting(): void {
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0)
     dirLight.position.set(8, 16, 8)
     dirLight.castShadow = true
     dirLight.shadow.mapSize.set(2048, 2048)
@@ -56,10 +72,17 @@ export class Renderer {
     dirLight.shadow.camera.right = 15
     dirLight.shadow.camera.top = 15
     dirLight.shadow.camera.bottom = -15
+    dirLight.shadow.bias = -0.001
+    dirLight.shadow.normalBias = 0.05
+    dirLight.shadow.intensity = 1
+    dirLight.shadow.radius = 5
+    dirLight.shadow.camera.updateProjectionMatrix()
     this.scene.add(dirLight)
 
     const pmrem = new THREE.PMREMGenerator(this.renderer)
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this.roomEnvTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this.scene.environment = this.roomEnvTexture
+    this.scene.environmentIntensity = 1.2
     pmrem.dispose()
   }
 
@@ -95,6 +118,22 @@ export class Renderer {
     this.camera.bottom = -this.frustumSize / 2
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(w, h)
+  }
+
+  setBackground(url: string, intensity = 0.15): void {
+    this.bgLoader.load(url, texture => {
+      this.scene.background = texture
+      this.scene.backgroundIntensity = intensity
+    })
+  }
+
+  get reflectionTexture(): THREE.Texture { return this.cubeRenderTarget.texture }
+
+  updateReflectionProbe(): void {
+    if (++this._reflFrame % 3 !== 0) return
+    this.cubeCamera.update(this.renderer, this.scene)
+    // Restore RoomEnvironment so IBL lighting stays consistent
+    this.scene.environment = this.roomEnvTexture
   }
 
   render(): void {

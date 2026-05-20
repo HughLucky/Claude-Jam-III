@@ -22,6 +22,7 @@ export class Player {
 
   private onLand: ((box: HexBox) => void) | null = null
   private onMove: (() => void) | null = null
+  private shadowLight: THREE.PointLight
 
   get isInvincible(): boolean { return this.invincibilityTime > 0 }
 
@@ -39,7 +40,16 @@ export class Player {
     _duckyTemplate.updateMatrixWorld(true)
 
     _duckyTemplate.traverse(obj => {
-      if (obj instanceof THREE.Mesh) obj.castShadow = true
+      if (!(obj instanceof THREE.Mesh)) return
+      obj.castShadow = true
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const mat of mats) {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.metalness = 0.5
+          mat.roughness = 0.5
+          mat.envMapIntensity = 0.5
+        }
+      }
     })
   }
 
@@ -48,6 +58,13 @@ export class Player {
     this.board = board
     this.mesh = this.buildMesh()
     this.scene.add(this.mesh)
+
+    this.shadowLight = new THREE.PointLight(0xffffff, 0.7)
+    this.shadowLight.castShadow = true
+    this.shadowLight.shadow.mapSize.set(512, 512)
+    this.shadowLight.shadow.camera.near = 0.05
+    this.shadowLight.shadow.camera.far = 10
+    this.scene.add(this.shadowLight)
   }
 
   private buildMesh(): THREE.Group {
@@ -131,6 +148,11 @@ export class Player {
 
   update(dt: number): void {
     const S = this.board.hexRadius
+    this.shadowLight.position.set(
+      this.mesh.position.x,
+      this.mesh.position.y + S * 4,
+      this.mesh.position.z
+    )
 
     if (this.deathTween) {
       this.deathTween.t = Math.min(1, this.deathTween.t + dt * 0.9)
@@ -214,5 +236,6 @@ export class Player {
 
   dispose(): void {
     this.scene.remove(this.mesh)
+    this.scene.remove(this.shadowLight)
   }
 }

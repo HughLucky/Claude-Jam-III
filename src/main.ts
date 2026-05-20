@@ -20,9 +20,26 @@ import {
   showLifeLostToast,
   buildLevelCompleteScreen,
   buildGameOverScreen,
+  setHUDEnemies,
+  markHUDEnemyDied,
 } from './ui/screens'
 
 type GameScreen = 'splash' | 'leaderboard' | 'bet' | 'gameplay' | 'levelComplete' | 'gameOver'
+
+const SESSION_KEY = 'quackstack_session'
+
+function saveSession(level: number, bankroll: number, seed: number, lives: number): void {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ level, bankroll, seed, lives }))
+}
+
+function loadSession(): { level: number; bankroll: number; seed: number; lives: number } | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return { ...parsed, lives: parsed.lives ?? 3 }
+  } catch { return null }
+}
 
 class Game {
   private renderer: Renderer
@@ -92,15 +109,25 @@ class Game {
     this.currentScreen = 'splash'
     this.hud.classList.add('hidden')
     audioManager.playIntro()
-    const best = this.leaderboard.getPlayerBest()
+    const session = loadSession()
     const screen = buildSplashScreen(
       () => this.startNewGame(),
       () => this.showLeaderboard(),
-      best?.score ?? 0,
-      best?.level ?? 0,
+      session,
+      () => this.continueSession(session),
       (level) => this.debugJumpToLevel(level),
     )
     this.setScreen(screen)
+  }
+
+  private continueSession(session: { level: number; bankroll: number; seed: number; lives: number } | null): void {
+    if (!session) { this.startNewGame(); return }
+    audioManager.playAccept()
+    this.currentLevel = session.level
+    this.casino.bankroll = session.bankroll
+    this.runSeed = session.seed
+    this.livesRemaining = session.lives
+    this.showBetScreen()
   }
 
   private debugJumpToLevel(level: number): void {
@@ -123,10 +150,12 @@ class Game {
     this.casino.reset()
     this.currentLevel = 1
     this.runSeed = Math.floor(Math.random() * 2_000_000_000)
+    this.livesRemaining = 3
     this.showBetScreen()
   }
 
   private showBetScreen(): void {
+    saveSession(this.currentLevel, this.casino.bankroll, this.runSeed, this.livesRemaining)
     this.currentScreen = 'bet'
     this.hud.classList.add('hidden')
     const config = getLevelConfig(this.currentLevel)
@@ -136,6 +165,8 @@ class Game {
       this.casino.minBet,
       this.casino.maxBet,
       (bet) => this.startLevel(bet),
+      () => { audioManager.playAccept(); this.showSplash() },
+      this.livesRemaining,
     )
     this.setScreen(screen)
   }
@@ -143,6 +174,9 @@ class Game {
   private startLevel(bet: number): void {
     if (!this.casino.placeBet(bet)) return
     audioManager.playAccept()
+    const bgIndex = ((this.currentLevel - 1) % 6) + 1
+    const bgNum = String(bgIndex).padStart(2, '0')
+    this.renderer.setBackground(`${import.meta.env.BASE_URL}assets/images/UI_bgImage${bgNum}.png`)
     this.currentScreen = 'gameplay'
     this.activeScreenEl?.remove()
     this.activeScreenEl = null
@@ -158,7 +192,6 @@ class Game {
     this.timerRunning = false
     this.gameStarted = false
     this.safeZoneCooldown = false
-    this.livesRemaining = 3
     this.shrinkAura?.dispose()
     this.shrinkAura = null
 
@@ -176,7 +209,17 @@ class Game {
 
     this.hud.classList.remove('hidden')
     this.refreshHUD()
+    setHUDEnemies(config.enemySpawns)
     audioManager.playGameplayBgm(config.level === 50)
+
+    const debugBtn = document.getElementById('hud-debug-autocomplete')
+    if (debugBtn) {
+      debugBtn.onclick = () => {
+        this.timerRunning = false
+        const result = this.casino.completeLevelPayout(this.floorManager.totalBoxes)
+        this.showLevelComplete(result)
+      }
+    }
   }
 
   private generateFloors(config: import('./systems/levels').LevelConfig): void {
@@ -333,7 +376,6 @@ class Game {
     this.levelTotalTime = config.timeLimit
     this.timerRunning = false
     this.gameStarted = false
-    this.livesRemaining = 3
 
     this.player.dispose()
     this.player = new Player(this.renderer.scene, this.floorManager.board)
@@ -369,19 +411,32 @@ class Game {
     else audioManager.playLevelComplete()
     this.floorManager.clear()
     this.hud.classList.add('hidden')
-    const screen = buildLevelCompleteScreen(result, this.casino.bankroll, () => {
-      audioManager.playAccept()
-      if (this.currentLevel < 50) {
-        this.currentLevel++
+    const screen = buildLevelCompleteScreen(
+      result,
+      this.casino.bankroll,
+      () => {
+        audioManager.playAccept()
+        if (this.currentLevel < 50) {
+          this.currentLevel++
+          this.showBetScreen()
+        } else {
+          this.triggerGameOver()
+        }
+      },
+      () => {
+        audioManager.playAccept()
         this.showBetScreen()
-      } else {
-        this.triggerGameOver()
-      }
-    })
+      },
+      () => {
+        audioManager.playAccept()
+        this.showSplash()
+      },
+    )
     this.setScreen(screen)
   }
 
   private triggerGameOver(): void {
+    saveSession(this.currentLevel, this.casino.bankroll, this.runSeed, 3)
     audioManager.stopBgm()
     audioManager.playGameOver()
     this.timerRunning = false
@@ -496,11 +551,12 @@ class Game {
       const collisionBoxId = this.player.state === 'jumping' ? -1 : this.player.currentBoxId
       let collisionStarted = false
       for (let i = 0; i < this.floorManager.floorCount; i++) {
-        const { collisionStarted: hit } = this.floorManager.enemyManagers[i].update(
+        const { collisionStarted: hit, killedTypes } = this.floorManager.enemyManagers[i].update(
           dt,
           i === this.floorManager.currentFloor ? collisionBoxId : -1
         )
         if (hit) collisionStarted = true
+        killedTypes.forEach(t => markHUDEnemyDied(t))
       }
       if (collisionStarted && this.gameStarted && !this.player.isInvincible) this.onPlayerHit()
 
@@ -519,6 +575,7 @@ class Game {
       this.multiplierBursts = this.multiplierBursts.filter(mb => !mb.done)
     }
 
+    this.renderer.updateReflectionProbe()
     this.renderer.render()
     requestAnimationFrame(ts => this.loop(ts))
   }
@@ -568,11 +625,7 @@ class Game {
         this.shrinkAura = null
         this.particleBurst?.dispose()
         this.particleBurst = null
-        if (this.casino.isBankrupt) {
-          this.triggerGameOver()
-        } else {
-          this.showBetScreen()
-        }
+        this.triggerGameOver()
       }, 2100)
     }
   }
@@ -581,11 +634,7 @@ class Game {
     this.timerRunning = false
     this.casino.loseLevel()
     this.floorManager.clear()
-    if (this.casino.isBankrupt) {
-      this.triggerGameOver()
-    } else {
-      this.showBetScreen()
-    }
+    this.triggerGameOver()
   }
 }
 

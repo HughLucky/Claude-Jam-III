@@ -203,9 +203,9 @@ export class MultiplierBurst {
     const texture = new THREE.CanvasTexture(canvas)
     const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
     this.sprite = new THREE.Sprite(mat)
-    this.sprite.position.copy(position).add(new THREE.Vector3(0, 1.2 * scale, 0))
-    this.sprite.scale.set(2.8 * scale, 1.05 * scale, 1)
-    this.driftSpeed = 1.4 * scale
+    this.sprite.position.copy(position).add(new THREE.Vector3(0, 0.6 * scale, 0))
+    this.sprite.scale.set(1.4 * scale, 0.525 * scale, 1)
+    this.driftSpeed = 0.7 * scale
     scene.add(this.sprite)
   }
 
