@@ -589,6 +589,7 @@ class Game {
   }
 }
 
+
 ;(async () => {
   try {
     await Promise.all([Board.preload(), Player.preload(), EnemyManager.preload(), audioManager.preload()])

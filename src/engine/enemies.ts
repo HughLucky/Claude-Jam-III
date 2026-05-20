@@ -548,8 +548,8 @@ function buildPlaceholderMesh(type: EnemyType, index: number, S: number): THREE.
     case 'lateral':  return buildGlbEnemy(_enemy01Template, index, S)
     case 'chaser':   return buildGlbEnemy(_enemy02Template, index, S)
     case 'eraser':   return buildGlbEnemy(_enemy03Template, index, S)
-    case 'stalker':  return buildGlbEnemy(_enemy04Template, index, S)
-    case 'bouncer':  return buildGlbEnemy(_enemy05Template, index, S)
+    case 'bouncer':  return buildGlbEnemy(_enemy04Template, index, S)
+    case 'stalker':  return buildGlbEnemy(_enemy05Template, index, S)
     case 'boss':     return buildGlbEnemy(_finalBossTemplate, index, S)
   }
 }

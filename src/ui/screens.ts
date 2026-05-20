@@ -152,11 +152,10 @@ style.textContent = `
   /* Lives display */
   .hud-lives { display: flex; align-items: center; gap: 0.35em; }
   .life-pip {
-    width: 14px; height: 14px; border-radius: 50%;
-    background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green);
-    transition: background 0.3s, box-shadow 0.3s;
+    width: 22px; height: 22px; object-fit: contain;
+    transition: opacity 0.3s;
   }
-  .life-pip.lost { background: rgba(255,255,255,0.1); box-shadow: none; }
+  .life-pip.lost { opacity: 0.15; }
   /* Life-lost toast */
   .life-lost-toast {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -170,10 +169,10 @@ style.textContent = `
   .life-lost-toast .llt-title { font-size: 1.4rem; font-weight: 900; color: var(--neon-purple); }
   .life-lost-toast .llt-lives { display: flex; justify-content: center; gap: 0.5em; margin-top: 0.5em; }
   .life-lost-toast .llt-pip {
-    width: 16px; height: 16px; border-radius: 50%;
-    background: var(--neon-green); box-shadow: 0 0 8px var(--neon-green);
+    width: 22px; height: 22px; object-fit: contain;
+    transition: opacity 0.3s;
   }
-  .life-lost-toast .llt-pip.lost { background: rgba(255,255,255,0.1); box-shadow: none; }
+  .life-lost-toast .llt-pip.lost { opacity: 0.15; }
   /* Safe zone result toast */
   .safe-zone-toast {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -231,9 +230,9 @@ export function buildSplashScreen(
         <button class="qs-btn qs-btn-secondary interactive" id="btn-lb"
                 style="margin:0;width:220px;">🏆&nbsp; Leaderboard</button>
       </div>
-      <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);letter-spacing:0.2em;font-family:var(--font);">
+      ${bestScore > 0 ? `<div style="font-size:0.72rem;color:rgba(255,255,255,0.35);letter-spacing:0.2em;font-family:var(--font);">
         ALL-TIME BEST:&nbsp; $${bestScore.toLocaleString()} &nbsp;·&nbsp; LEVEL ${bestLevel}
-      </div>
+      </div>` : ''}
     </div>
   `
   screen.querySelector('#btn-play')!.addEventListener('click', onPlay)
@@ -314,26 +313,54 @@ export function buildLeaderboardScreen(
 ): HTMLElement {
   const screen = el('div', 'qs-screen')
   screen.id = 'leaderboard-screen'
-  let rows = entries.slice(0, 9).map((e, i) => `
-    <tr><td class="lb-rank">${i + 1}</td><td class="lb-gold">${e.initials}</td>
-        <td>$${e.score.toLocaleString()}</td><td>${e.level}</td></tr>
-  `).join('')
 
-  const inTop = playerEntry && playerRank !== null && playerRank <= 9
-  if (playerEntry && playerRank !== null) {
-    const r = inTop ? playerRank : playerRank
-    rows += `<tr class="lb-player-row">
-      <td class="lb-rank">▶ ${r}</td><td>${playerEntry.initials}</td>
-      <td>$${playerEntry.score.toLocaleString()}</td><td>${playerEntry.level}</td>
-    </tr>`
-  }
+  const isPlayerRow = (e: LeaderboardEntry) =>
+    playerEntry !== null && !e.fake &&
+    e.initials === playerEntry.initials &&
+    e.score === playerEntry.score &&
+    e.level === playerEntry.level
+
+  const rows = entries.slice(0, 10).map((e, i) => {
+    const isPlayer = isPlayerRow(e)
+    const cls = isPlayer ? ' class="lb-player-row"' : ''
+    const rankCell = isPlayer
+      ? `<td class="lb-rank">▶ ${i + 1}</td>`
+      : `<td class="lb-rank">${i + 1}</td>`
+    return `<tr${cls}>${rankCell}<td class="${isPlayer ? '' : 'lb-gold'}">${e.initials}</td>
+        <td>$${e.score.toLocaleString()}</td><td>${e.level}</td></tr>`
+  }).join('')
+
+  const extraRow = playerEntry && playerRank !== null && playerRank > 10
+    ? `<tr class="lb-player-row">
+        <td class="lb-rank">▶ ${playerRank}</td><td>${playerEntry.initials}</td>
+        <td>$${playerEntry.score.toLocaleString()}</td><td>${playerEntry.level}</td>
+       </tr>`
+    : ''
+
+  const statsCard = playerEntry
+    ? `<div class="qs-card" style="width:min(480px,90vw);display:flex;justify-content:space-around;padding:0.8em 1.2em;margin-bottom:0.8em;">
+        <div style="text-align:center;">
+          <div class="hud-label">All-Time Best</div>
+          <div class="qs-gold" style="font-size:1.2rem;font-weight:900;">$${playerEntry.score.toLocaleString()}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="hud-label">Best Level</div>
+          <div style="font-size:1.2rem;font-weight:900;color:#fff;">${playerEntry.level}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="hud-label">Rank</div>
+          <div style="font-size:1.2rem;font-weight:900;color:#fff;">#${playerRank}</div>
+        </div>
+      </div>`
+    : ''
 
   screen.innerHTML = `
-    <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);margin-bottom:0.2em;">Leaderboard</div>
+    <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);margin-bottom:0.6em;">Leaderboard</div>
+    ${statsCard}
     <div class="qs-card">
       <table class="lb-table">
         <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${extraRow}</tbody>
       </table>
     </div>
     <button class="qs-btn qs-btn-secondary interactive" id="btn-back-lb" style="margin-top:1em;">← Back</button>
@@ -466,9 +493,9 @@ export function buildHUD(): HTMLElement {
     <div class="hud-block">
       <div class="hud-label">Lives</div>
       <div class="hud-lives" id="hud-lives">
-        <div class="life-pip" id="life-pip-3"></div>
-        <div class="life-pip" id="life-pip-2"></div>
-        <div class="life-pip" id="life-pip-1"></div>
+        <img class="life-pip" id="life-pip-3" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
+        <img class="life-pip" id="life-pip-2" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
+        <img class="life-pip" id="life-pip-1" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
       </div>
     </div>
     <div class="hud-block"><div class="hud-label">Avg Mult</div><div class="hud-value qs-gold" id="hud-mult">—</div></div>
@@ -513,7 +540,7 @@ export function showLifeLostToast(uiRoot: HTMLElement, livesRemaining: number): 
   const toast = document.createElement('div')
   toast.className = 'life-lost-toast'
   const pips = [3, 2, 1].map(i =>
-    `<div class="llt-pip${i > livesRemaining ? ' lost' : ''}"></div>`
+    `<img class="llt-pip${i > livesRemaining ? ' lost' : ''}" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">`
   ).join('')
   toast.innerHTML = `
     <div class="llt-title">💀 Life Lost</div>
