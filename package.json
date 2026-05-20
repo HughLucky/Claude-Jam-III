@@ -1,0 +1,22 @@
+{
+  "name": "quack-stack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.175.0",
+    "gsap": "^3.12.7",
+    "howler": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/three": "^0.175.0",
+    "@types/howler": "^2.2.12",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

@@ -1,0 +1,595 @@
+import * as THREE from 'three'
+import { Renderer } from './engine/renderer'
+import { Board, HexBox } from './engine/board'
+import { Player } from './engine/player'
+import { EnemyManager } from './engine/enemies'
+import { FloorManager } from './engine/floors'
+import { triggerScreenFlash, CameraShake, ParticleBurst, ShockwaveRing, MultiplierBurst, ShrinkAura } from './engine/vfx'
+import { CasinoSystem } from './systems/casino'
+import { Leaderboard } from './systems/leaderboard'
+import { getLevelConfig } from './systems/levels'
+import { audioManager } from './systems/audio'
+import {
+  buildSplashScreen,
+  buildLeaderboardScreen,
+  buildBetScreen,
+  buildHUD,
+  updateHUD,
+  showSafeZoneDialog,
+  showSafeZoneResult,
+  showLifeLostToast,
+  buildLevelCompleteScreen,
+  buildGameOverScreen,
+} from './ui/screens'
+
+type GameScreen = 'splash' | 'leaderboard' | 'bet' | 'gameplay' | 'levelComplete' | 'gameOver'
+
+class Game {
+  private renderer: Renderer
+  private floorManager: FloorManager
+  private player!: Player
+  private casino: CasinoSystem
+  private leaderboard: Leaderboard
+  private uiRoot: HTMLElement
+
+  private currentScreen: GameScreen = 'splash'
+  private currentLevel: number = 1
+  private runSeed: number = 0
+  private timeLeft: number = 120
+  private timerRunning: boolean = false
+  private lastTimestamp: number = 0
+
+  private hud!: HTMLElement
+  private activeScreenEl: HTMLElement | null = null
+  private levelTotalTime: number = 120
+  private safeZoneCooldown: boolean = false
+  private dialogOpen: boolean = false
+  private dying: boolean = false
+  private gameStarted: boolean = false
+  private livesRemaining: number = 3
+
+  // Active VFX
+  private cameraShake: CameraShake | null = null
+  private particleBurst: ParticleBurst | null = null
+  private shockwave: ShockwaveRing | null = null
+  private shrinkAura: ShrinkAura | null = null
+  private multiplierBursts: MultiplierBurst[] = []
+
+  private raycaster = new THREE.Raycaster()
+  private pointer = new THREE.Vector2()
+
+  constructor() {
+    const container = document.getElementById('canvas-container')!
+    this.uiRoot = document.getElementById('ui-root')!
+
+    this.renderer = new Renderer(container)
+    this.floorManager = new FloorManager(this.renderer.scene, 1)
+    this.casino = new CasinoSystem()
+    this.leaderboard = new Leaderboard()
+    this.leaderboard.load()
+
+    this.buildPersistentUI()
+    this.showSplash()
+    this.bindInput()
+
+    requestAnimationFrame(ts => this.loop(ts))
+  }
+
+  // ── Persistent UI ─────────────────────────────────────────────────────────
+  private buildPersistentUI(): void {
+    this.hud = buildHUD()
+    this.uiRoot.appendChild(this.hud)
+  }
+
+  // ── Screen transitions ────────────────────────────────────────────────────
+  private setScreen(screen: HTMLElement): void {
+    this.activeScreenEl?.remove()
+    this.uiRoot.appendChild(screen)
+    this.activeScreenEl = screen
+  }
+
+  private showSplash(): void {
+    this.currentScreen = 'splash'
+    this.hud.classList.add('hidden')
+    audioManager.playIntro()
+    const best = this.leaderboard.getPlayerBest()
+    const screen = buildSplashScreen(
+      () => this.startNewGame(),
+      () => this.showLeaderboard(),
+      best?.score ?? 0,
+      best?.level ?? 0,
+      (level) => this.debugJumpToLevel(level),
+    )
+    this.setScreen(screen)
+  }
+
+  private debugJumpToLevel(level: number): void {
+    this.casino.reset()
+    this.currentLevel = level
+    this.runSeed = Math.floor(Math.random() * 2_000_000_000)
+    this.startLevel(this.casino.minBet)
+  }
+
+  private showLeaderboard(): void {
+    const top = this.leaderboard.getTop(10)
+    const best = this.leaderboard.getPlayerBest()
+    const rank = best ? this.leaderboard.getRank(best.score) : null
+    const screen = buildLeaderboardScreen(top, rank, best, () => this.showSplash())
+    this.setScreen(screen)
+  }
+
+  private startNewGame(): void {
+    audioManager.playAccept()
+    this.casino.reset()
+    this.currentLevel = 1
+    this.runSeed = Math.floor(Math.random() * 2_000_000_000)
+    this.showBetScreen()
+  }
+
+  private showBetScreen(): void {
+    this.currentScreen = 'bet'
+    this.hud.classList.add('hidden')
+    const config = getLevelConfig(this.currentLevel)
+    const screen = buildBetScreen(
+      config,
+      this.casino.bankroll,
+      this.casino.minBet,
+      this.casino.maxBet,
+      (bet) => this.startLevel(bet),
+    )
+    this.setScreen(screen)
+  }
+
+  private startLevel(bet: number): void {
+    if (!this.casino.placeBet(bet)) return
+    audioManager.playAccept()
+    this.currentScreen = 'gameplay'
+    this.activeScreenEl?.remove()
+    this.activeScreenEl = null
+
+    const config = getLevelConfig(this.currentLevel)
+
+    // Reconfigure floor manager for this level's floor count
+    this.floorManager.reconfigure(config.floorCount, config.hexRadius)
+
+    this.generateFloors(config)
+    this.levelTotalTime = config.timeLimit
+    this.timeLeft = config.timeLimit
+    this.timerRunning = false
+    this.gameStarted = false
+    this.safeZoneCooldown = false
+    this.livesRemaining = 3
+    this.shrinkAura?.dispose()
+    this.shrinkAura = null
+
+    if (this.player) this.player.dispose()
+    this.player = new Player(this.renderer.scene, this.floorManager.board)
+    const topBox = this.floorManager.board.getBox(0, 0)!
+    this.player.spawnAt(topBox)
+    this.floorManager.board.highlightBox(topBox)
+    this.casino.revealBox(topBox)
+
+    this.player.setOnLand(box => this.onPlayerLand(box))
+    this.player.setOnMove(() => this.onFirstMove())
+
+    this.floorManager.spawnAll(config.enemySpawns, config.enemySpeed, config.seed, this.player.currentBoxId)
+
+    this.hud.classList.remove('hidden')
+    this.refreshHUD()
+    audioManager.playGameplayBgm(config.level === 50)
+  }
+
+  private generateFloors(config: import('./systems/levels').LevelConfig): void {
+    const seed = config.level === 1
+      ? config.seed
+      : (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
+    this.floorManager.generateFloors(seed, config.tilesPerFloor)
+    this.renderer.fitCamera(this.floorManager.board.boxes.map(b => b.worldPos), this.floorManager.board.hexRadius)
+  }
+
+  // ── Floor transition ──────────────────────────────────────────────────────
+  private transitionFloor(targetFloor: number): void {
+    if (targetFloor < 0 || targetFloor >= this.floorManager.floorCount) return
+    this.dying = true
+
+    // Shockwave at current portal
+    const isGoingDown = targetFloor > this.floorManager.currentFloor
+    const currentPortalId = isGoingDown
+      ? this.floorManager.board.portalDownId
+      : this.floorManager.board.portalUpId
+    const portalBox = this.floorManager.board.getBoxById(currentPortalId)
+    if (portalBox) {
+      this.shockwave = new ShockwaveRing(this.renderer.scene, portalBox.worldPos.clone())
+    }
+
+    setTimeout(() => {
+      // Freeze all floors during transition
+      for (const em of this.floorManager.enemyManagers) em.freeze()
+
+      this.floorManager.setCurrentFloor(targetFloor)
+      this.renderer.fitCamera(
+        this.floorManager.board.boxes.map(b => b.worldPos),
+        this.floorManager.board.hexRadius,
+      )
+
+      const newBoard = this.floorManager.board
+      // Spawn on the complementary portal of the target floor
+      const spawnId = isGoingDown ? newBoard.portalUpId : newBoard.portalDownId
+      const spawnBox = newBoard.getBoxById(spawnId) ?? newBoard.getBox(0, 0)!
+      this.player.setBoard(newBoard)
+      this.player.spawnAt(spawnBox)
+
+      // Highlight spawn on new floor if not yet visited (portals are excluded by highlightBox)
+      if (spawnBox.state === 'default') {
+        newBoard.highlightBox(spawnBox)
+        this.casino.revealBox(spawnBox)
+      }
+
+      // Unfreeze current floor but keep movement disabled — wait for first move
+      this.floorManager.enemyManager.unfreeze()
+      this.floorManager.enemyManager.disableMovement()
+      this.player.setOnMove(() => {
+        this.floorManager.enemyManager.enableMovement()
+        // Restore the no-op first-move callback
+        this.player.setOnMove(() => this.onFirstMove())
+      })
+
+      this.dying = false
+      this.refreshHUD()
+    }, 400)
+  }
+
+  // ── Gameplay events ───────────────────────────────────────────────────────
+  private onPlayerLand(box: HexBox): void {
+    audioManager.playJump()
+    const board = this.floorManager.board
+
+    // Portal checks
+    if (box.id === board.portalDownId) {
+      this.transitionFloor(this.floorManager.currentFloor + 1)
+      return
+    }
+    if (box.id === board.portalUpId) {
+      this.transitionFloor(this.floorManager.currentFloor - 1)
+      return
+    }
+
+    if (box.id === board.safeZoneId) {
+      this.onSafeZoneLand()
+      return
+    }
+
+    if (box.state !== 'highlighted') {
+      board.highlightBox(box)
+      const mult = this.casino.revealBox(box)
+      if (mult !== null) {
+        audioManager.playMultiplier(mult)
+        this.multiplierBursts.push(new MultiplierBurst(this.renderer.scene, box.worldPos.clone(), mult, this.floorManager.board.hexRadius))
+      }
+    }
+
+    this.refreshHUD()
+
+    if (this.floorManager.isComplete) {
+      this.timerRunning = false
+      const result = this.casino.completeLevelPayout(this.floorManager.totalBoxes)
+      this.showLevelComplete(result)
+    }
+  }
+
+  private onSafeZoneLand(): void {
+    if (this.safeZoneCooldown) return
+    this.safeZoneCooldown = true
+    this.timerRunning = false
+    this.dialogOpen = true
+    this.floorManager.enemyManager.freeze()
+
+    const elapsed = this.levelTotalTime - this.timeLeft
+    const elapsedRatio = Math.min(1, elapsed / this.levelTotalTime)
+    const avgMult = this.casino.runningAvgMultiplier
+    // Preview payout without committing
+    const previewPayout = Math.round(
+      this.casino.currentBet * elapsedRatio * (avgMult > 0 ? avgMult : 0)
+    )
+
+    showSafeZoneDialog(
+      this.uiRoot,
+      previewPayout,
+      elapsedRatio,
+      avgMult > 0 ? avgMult : 0,
+      () => {
+        // Cash Out — darken tile, then reset level
+        audioManager.playAccept()
+        this.dialogOpen = false
+        this.floorManager.board.markSafeZoneUsed()
+        const payout = this.casino.safeZoneCashOut(elapsed, this.levelTotalTime)
+        showSafeZoneResult(this.uiRoot, payout)
+        setTimeout(() => this.resetLevelInPlace(), 2200)
+      },
+      () => {
+        // Keep Playing — darken tile, cooldown stays true (once per level)
+        audioManager.playAccept()
+        this.dialogOpen = false
+        this.floorManager.board.markSafeZoneUsed()
+        this.timerRunning = true
+        this.floorManager.enemyManager.unfreeze()
+        this.floorManager.enemyManager.enableMovement()
+      },
+    )
+  }
+
+  private resetLevelInPlace(): void {
+    const config = getLevelConfig(this.currentLevel)
+    this.multiplierBursts.forEach(mb => mb.dispose())
+    this.multiplierBursts = []
+    this.shrinkAura?.dispose()
+    this.shrinkAura = null
+
+    // Single-floor levels only (safe zone only exists for floorCount=1)
+    this.floorManager.reconfigure(1, config.hexRadius)
+    this.generateFloors(config)
+
+    this.timeLeft = config.timeLimit
+    this.levelTotalTime = config.timeLimit
+    this.timerRunning = false
+    this.gameStarted = false
+    this.livesRemaining = 3
+
+    this.player.dispose()
+    this.player = new Player(this.renderer.scene, this.floorManager.board)
+    const topBox = this.floorManager.board.getBox(0, 0)!
+    this.player.spawnAt(topBox)
+    this.floorManager.board.highlightBox(topBox)
+    this.casino.revealBox(topBox)
+    this.player.setOnLand(box => this.onPlayerLand(box))
+    this.player.setOnMove(() => this.onFirstMove())
+
+    this.floorManager.spawnAll(config.enemySpawns, config.enemySpeed, config.seed, this.player.currentBoxId)
+
+    this.safeZoneCooldown = false
+    this.refreshHUD()
+  }
+
+  private onFirstMove(): void {
+    if (this.gameStarted) return
+    this.gameStarted = true
+    this.timerRunning = true
+    this.floorManager.enemyManager.enableMovement()
+  }
+
+  private onResumeAfterLifeLoss(): void {
+    this.timerRunning = true
+    this.floorManager.enemyManager.enableMovement()
+    this.player.setOnMove(() => {})
+  }
+
+  private showLevelComplete(result: import('./systems/casino').LevelResult): void {
+    audioManager.stopBgm()
+    if (this.currentLevel === 50) audioManager.playFinalBoss()
+    else audioManager.playLevelComplete()
+    this.floorManager.clear()
+    this.hud.classList.add('hidden')
+    const screen = buildLevelCompleteScreen(result, this.casino.bankroll, () => {
+      audioManager.playAccept()
+      if (this.currentLevel < 50) {
+        this.currentLevel++
+        this.showBetScreen()
+      } else {
+        this.triggerGameOver()
+      }
+    })
+    this.setScreen(screen)
+  }
+
+  private triggerGameOver(): void {
+    audioManager.stopBgm()
+    audioManager.playGameOver()
+    this.timerRunning = false
+    this.hud.classList.add('hidden')
+    const top = this.leaderboard.getTop(10)
+    const screen = buildGameOverScreen(
+      this.casino.bankroll,
+      this.currentLevel,
+      top,
+      null,
+      null,
+      (initials) => {
+        audioManager.playAccept()
+        const r = this.leaderboard.submit(initials, this.casino.bankroll, this.currentLevel)
+        const entry = { initials, score: this.casino.bankroll, level: this.currentLevel, fake: false }
+        const updated = buildGameOverScreen(
+          this.casino.bankroll, this.currentLevel,
+          this.leaderboard.getTop(10), entry, r,
+          () => {}, () => { audioManager.playAccept(); this.showSplash() }
+        )
+        this.setScreen(updated)
+      },
+      () => { audioManager.playAccept(); this.showSplash() },
+    )
+    this.setScreen(screen)
+  }
+
+  // ── Input ─────────────────────────────────────────────────────────────────
+  private bindInput(): void {
+    window.addEventListener('keydown', e => this.onKey(e))
+    this.renderer.renderer.domElement.addEventListener('click', e => this.onCanvasClick(e))
+  }
+
+  private onKey(e: KeyboardEvent): void {
+    if (this.currentScreen !== 'gameplay' || this.dying || this.dialogOpen) return
+
+    const current = this.floorManager.board.getBoxById(this.player.currentBoxId)
+    if (!current) return
+    const { row, col } = current
+
+    const moves: Record<string, { row: number; col: number }> = {
+      'Numpad7': { row: row,     col: col - 1 },
+      'Numpad9': { row: row + 1, col: col - 1 },
+      'Numpad6': { row: row + 1, col: col     },
+      'Numpad3': { row: row,     col: col + 1 },
+      'Numpad1': { row: row - 1, col: col + 1 },
+      'Numpad4': { row: row - 1, col: col     },
+      'ArrowUp':    { row: row,     col: col - 1 },
+      'ArrowRight': { row: row + 1, col: col - 1 },
+      'ArrowDown':  { row: row,     col: col + 1 },
+      'ArrowLeft':  { row: row - 1, col: col + 1 },
+      'KeyW': { row: row,     col: col - 1 },
+      'KeyD': { row: row + 1, col: col - 1 },
+      'KeyS': { row: row,     col: col + 1 },
+      'KeyA': { row: row - 1, col: col + 1 },
+    }
+
+    const target = moves[e.code]
+    if (!target) return
+    e.preventDefault()
+    const targetBox = this.floorManager.board.getBox(target.row, target.col)
+    if (targetBox) this.player.tryMove(targetBox.id)
+  }
+
+  private onCanvasClick(e: MouseEvent): void {
+    if (this.currentScreen !== 'gameplay' || this.dialogOpen) return
+    const rect = this.renderer.renderer.domElement.getBoundingClientRect()
+    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+
+    this.raycaster.setFromCamera(this.pointer, this.renderer.camera)
+    const meshes = this.floorManager.board.boxes.map(b => b.topMesh)
+    const hits = this.raycaster.intersectObjects(meshes)
+    if (hits.length === 0) return
+
+    const hitMesh = hits[0].object
+    const box = this.floorManager.board.boxes.find(b => b.topMesh === hitMesh)
+    if (box) this.player.tryMove(box.id)
+  }
+
+  // ── HUD ───────────────────────────────────────────────────────────────────
+  private refreshHUD(): void {
+    updateHUD(
+      this.currentLevel,
+      this.timeLeft,
+      this.floorManager.highlightedCount,
+      this.floorManager.totalBoxes,
+      this.casino.runningAvgMultiplier,
+      this.casino.bankroll,
+      this.casino.currentBet,
+      this.livesRemaining,
+      this.floorManager.currentFloor + 1,
+      this.floorManager.floorCount,
+    )
+  }
+
+  // ── Game loop ─────────────────────────────────────────────────────────────
+  private loop(timestamp: number): void {
+    const dt = Math.min((timestamp - this.lastTimestamp) / 1000, 0.1)
+    this.lastTimestamp = timestamp
+
+    if (this.currentScreen === 'gameplay') {
+      if (this.timerRunning) {
+        this.timeLeft = Math.max(0, this.timeLeft - dt)
+        this.refreshHUD()
+        if (this.timeLeft <= 0) this.onTimeUp()
+      }
+      this.player?.update(dt)
+      this.floorManager.update(dt)
+
+      // Update all floor enemy managers; only check collision on current floor
+      const collisionBoxId = this.player.state === 'jumping' ? -1 : this.player.currentBoxId
+      let collisionStarted = false
+      for (let i = 0; i < this.floorManager.floorCount; i++) {
+        const { collisionStarted: hit } = this.floorManager.enemyManagers[i].update(
+          dt,
+          i === this.floorManager.currentFloor ? collisionBoxId : -1
+        )
+        if (hit) collisionStarted = true
+      }
+      if (collisionStarted && this.gameStarted && !this.player.isInvincible) this.onPlayerHit()
+
+      // VFX tick
+      this.particleBurst?.update(dt)
+      this.shockwave?.update(dt)
+      if (this.shrinkAura) {
+        this.shrinkAura.update(dt)
+        if (this.shrinkAura.done) this.shrinkAura = null
+      }
+      if (this.cameraShake) {
+        const alive = this.cameraShake.update(dt, this.renderer.camera)
+        if (!alive) this.cameraShake = null
+      }
+      for (const mb of this.multiplierBursts) mb.update(dt)
+      this.multiplierBursts = this.multiplierBursts.filter(mb => !mb.done)
+    }
+
+    this.renderer.render()
+    requestAnimationFrame(ts => this.loop(ts))
+  }
+
+  private onPlayerHit(): void {
+    if (this.currentScreen !== 'gameplay' || this.dying) return
+    this.dying = true
+
+    const origin = this.player.mesh.position.clone()
+    this.particleBurst?.dispose()
+    this.particleBurst = new ParticleBurst(this.renderer.scene, origin, 32)
+    this.shockwave = new ShockwaveRing(this.renderer.scene, origin)
+    this.cameraShake = new CameraShake(this.renderer.camera, 0.55, 0.22)
+    triggerScreenFlash(this.uiRoot)
+
+    this.livesRemaining--
+    audioManager.playLifeLost()
+
+    if (this.livesRemaining > 0) {
+      this.timerRunning = false
+      this.floorManager.enemyManager.freeze()
+      this.shrinkAura?.dispose()
+      this.shrinkAura = new ShrinkAura(this.renderer.scene, origin)
+      this.player.shrinkToLives(this.livesRemaining)
+      showLifeLostToast(this.uiRoot, this.livesRemaining)
+      this.refreshHUD()
+
+      setTimeout(() => {
+        this.dying = false
+        this.particleBurst?.dispose()
+        this.particleBurst = null
+        this.player.startInvincibility(2.5)
+        this.floorManager.enemyManager.unfreeze()
+        this.floorManager.enemyManager.disableMovement()
+        this.player.setOnMove(() => this.onResumeAfterLifeLoss())
+      }, 2000)
+    } else {
+      this.timerRunning = false
+      this.floorManager.enemyManager.freeze()
+      this.player.playDeath()
+
+      setTimeout(() => {
+        this.dying = false
+        this.casino.loseLevel()
+        this.floorManager.clear()
+        this.shrinkAura?.dispose()
+        this.shrinkAura = null
+        this.particleBurst?.dispose()
+        this.particleBurst = null
+        if (this.casino.isBankrupt) {
+          this.triggerGameOver()
+        } else {
+          this.showBetScreen()
+        }
+      }, 2100)
+    }
+  }
+
+  private onTimeUp(): void {
+    this.timerRunning = false
+    this.casino.loseLevel()
+    this.floorManager.clear()
+    if (this.casino.isBankrupt) {
+      this.triggerGameOver()
+    } else {
+      this.showBetScreen()
+    }
+  }
+}
+
+;(async () => {
+  await Promise.all([Board.preload(), Player.preload(), EnemyManager.preload(), audioManager.preload()])
+  new Game()
+})()
