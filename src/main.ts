@@ -590,6 +590,14 @@ class Game {
 }
 
 ;(async () => {
-  await Promise.all([Board.preload(), Player.preload(), EnemyManager.preload(), audioManager.preload()])
-  new Game()
+  try {
+    await Promise.all([Board.preload(), Player.preload(), EnemyManager.preload(), audioManager.preload()])
+    new Game()
+  } catch (err) {
+    const msg = document.createElement('div')
+    msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#ff4466;font-size:1rem;padding:2em;text-align:center;white-space:pre-wrap;z-index:9999;'
+    msg.textContent = String(err)
+    document.body.appendChild(msg)
+    throw err
+  }
 })()
