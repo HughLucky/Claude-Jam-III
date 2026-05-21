@@ -16,6 +16,7 @@ export class Player {
   private jumpTween: { active: boolean; t: number; from: THREE.Vector3; to: THREE.Vector3 } | null = null
   private deathTween: { t: number; startY: number } | null = null
 
+  public jumpSpeedMultiplier = 1.0
   private lifeScale = 1.0
   private shrinkTween: { t: number; fromScale: number; toScale: number } | null = null
   private invincibilityTime = 0
@@ -182,7 +183,7 @@ export class Player {
     }
 
     if (this.jumpTween?.active) {
-      this.jumpTween.t = Math.min(1, this.jumpTween.t + dt * 4)
+      this.jumpTween.t = Math.min(1, this.jumpTween.t + dt * 4 * this.jumpSpeedMultiplier)
       const t = this.jumpTween.t
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
       this.mesh.position.lerpVectors(this.jumpTween.from, this.jumpTween.to, ease)

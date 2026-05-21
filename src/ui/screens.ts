@@ -291,6 +291,25 @@ style.textContent = `
     transition: opacity 0.3s;
   }
   .life-lost-toast .llt-pip.lost { opacity: 0.15; }
+  /* Mystery reward toast */
+  .mystery-toast {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,8,25,0.96); border: 2px solid #00aaff;
+    border-radius: 14px; padding: 0.9em 2em; text-align: center;
+    font-family: var(--font); pointer-events: none;
+    box-shadow: 0 0 40px rgba(0,140,255,0.6), 0 0 80px rgba(0,100,220,0.3);
+    animation: toastIn 0.25s ease, toastOut 0.4s ease 2s forwards;
+    z-index: 20;
+  }
+  .mystery-toast .mt-label {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.15em;
+    color: #55ccff; margin-bottom: 0.25em;
+  }
+  .mystery-toast .mt-reward {
+    font-size: 1.5rem; font-weight: 900;
+  }
+  .mystery-toast.good .mt-reward { color: #00eeff; text-shadow: 0 0 14px #00aaff; }
+  .mystery-toast.bad  .mt-reward { color: #ff4455; text-shadow: 0 0 14px #ff2200; }
   /* Safe zone result toast */
   .safe-zone-toast {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -348,8 +367,10 @@ export function buildSplashScreen(
   screen.id = 'splash-screen'
   screen.style.cssText = 'background:none; justify-content:flex-end;'
   screen.innerHTML = `
-    <img src="${import.meta.env.BASE_URL}assets/images/Quack-Stack_heroImage16-9_02.png" alt="Quack-Stack"
-         style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;">
+    <video autoplay loop muted playsinline
+           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;">
+      <source src="${import.meta.env.BASE_URL}assets/video/Quack_SplashVideo.mp4" type="video/mp4">
+    </video>
     <div style="position:relative;z-index:1;width:100%;
                 padding:4em 4em 3.2em;
                 background:linear-gradient(to top, rgba(10,0,18,0.92) 60%, transparent 100%);
@@ -765,6 +786,17 @@ export function showLifeLostToast(uiRoot: HTMLElement, livesRemaining: number): 
   `
   uiRoot.appendChild(toast)
   setTimeout(() => toast.remove(), 2300)
+}
+
+export function showMysteryToast(uiRoot: HTMLElement, rewardLabel: string, isPositive: boolean): void {
+  const toast = document.createElement('div')
+  toast.className = `mystery-toast ${isPositive ? 'good' : 'bad'}`
+  toast.innerHTML = `
+    <div class="mt-label">Mystery Tile</div>
+    <div class="mt-reward">${rewardLabel}</div>
+  `
+  uiRoot.appendChild(toast)
+  setTimeout(() => toast.remove(), 2500)
 }
 
 // ─── Safe Zone Dialog (interactive choice) ───────────────────────────────────

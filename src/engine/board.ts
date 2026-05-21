@@ -10,10 +10,34 @@ let _tileHeight: number = HEX_HEIGHT
 // Decal system — hex-surface GLB + per-state textures loaded once at startup
 let _decalHexTemplate: THREE.Group | null = null
 const _texLoader = new THREE.TextureLoader()
-let _safeTexBC:   THREE.Texture | null = null
-let _safeTexMask: THREE.Texture | null = null
+let _safeTexBC:       THREE.Texture | null = null
+let _safeTexMask:     THREE.Texture | null = null
+let _elevUpTexBC:     THREE.Texture | null = null
+let _elevUpTexMask:   THREE.Texture | null = null
+let _elevDownTexBC:   THREE.Texture | null = null
+let _elevDownTexMask: THREE.Texture | null = null
+let _mysteryTexBC:    THREE.Texture | null = null
+let _mysteryTexMask:  THREE.Texture | null = null
+let _mysteryStreakTex: THREE.Texture | null = null
 
-export type BoxState = 'default' | 'highlighted' | 'safeZone' | 'safeZoneUsed' | 'portalDown' | 'portalUp'
+function getMysteryStreakTex(): THREE.Texture {
+  if (_mysteryStreakTex) return _mysteryStreakTex
+  const canvas = document.createElement('canvas')
+  canvas.width = 8
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')!
+  const grad = ctx.createLinearGradient(0, 0, 0, 64)
+  grad.addColorStop(0,    'rgba(220,80,255,0)')
+  grad.addColorStop(0.15, 'rgba(230,100,255,0.9)')
+  grad.addColorStop(0.5,  'rgba(190,50,255,0.5)')
+  grad.addColorStop(1,    'rgba(140,20,220,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, 8, 64)
+  _mysteryStreakTex = new THREE.CanvasTexture(canvas)
+  return _mysteryStreakTex
+}
+
+export type BoxState = 'default' | 'highlighted' | 'safeZone' | 'safeZoneUsed' | 'portalDown' | 'portalUp' | 'mystery' | 'mysteryRevealed'
 
 export interface HexBox {
   id: number
@@ -25,6 +49,7 @@ export interface HexBox {
   topMesh: THREE.Mesh
   worldPos: THREE.Vector3
   portalArrow: THREE.Group | null
+  mysteryFx: { group: THREE.Group; sprites: THREE.Sprite[]; phases: number[] } | null
 }
 
 export class Board {
@@ -32,6 +57,7 @@ export class Board {
   public safeZoneId: number = -1
   public portalDownId: number = -1
   public portalUpId: number = -1
+  public mysteryIds: number[] = []
   private scene: THREE.Scene
   private rng: SeededRng
 
@@ -106,8 +132,19 @@ export class Board {
     _decalHexTemplate.updateMatrixWorld(true)
 
     // ── Decal textures (async-safe: THREE populates them when images arrive) ─
-    _safeTexBC   = _texLoader.load(`${base}assets/T_QuackTileHexSafe_BC.png`)
-    _safeTexMask = _texLoader.load(`${base}assets/T_QuackTileHexSafe_MASK.png`)
+    const loadTex = (path: string): THREE.Texture => {
+      const t = _texLoader.load(`${base}assets/models/${path}`)
+      t.flipY = false
+      return t
+    }
+    _safeTexBC       = loadTex('T_QuackTileHexSafe_BC.png')
+    _safeTexMask     = loadTex('T_QuackTileHexSafe_MASK.png')
+    _elevUpTexBC     = loadTex('T_QuackTileHexElevatorUp_BC.png')
+    _elevUpTexMask   = loadTex('T_QuackTileHexElevatorUp_MASK.png')
+    _elevDownTexBC   = loadTex('T_QuackTileHexElevatorDown_BC.png')
+    _elevDownTexMask = loadTex('T_QuackTileHexElevatorDown_MASK.png')
+    _mysteryTexBC    = loadTex('T_QuackTileHexMystery_BC.png')
+    _mysteryTexMask  = loadTex('T_QuackTileHexMystery_MASK.png')
   }
 
   // Level 1 only — fixed pyramid shape
@@ -262,19 +299,23 @@ export class Board {
   }
 
   highlightBox(box: HexBox): void {
-    if (box.state === 'safeZone' || box.state === 'safeZoneUsed' || box.state === 'portalDown' || box.state === 'portalUp') return
+    if (box.state === 'safeZone' || box.state === 'safeZoneUsed' ||
+        box.state === 'portalDown' || box.state === 'portalUp' ||
+        box.state === 'mystery' || box.state === 'mysteryRevealed') return
     this.setBoxState(box, 'highlighted')
   }
 
   resetBox(box: HexBox): void {
-    if (box.state === 'safeZone' || box.state === 'safeZoneUsed') return
+    if (box.state === 'safeZone' || box.state === 'safeZoneUsed' ||
+        box.state === 'mystery' || box.state === 'mysteryRevealed') return
     this.setBoxState(box, 'default')
   }
 
   get totalBoxes(): number {
     return this.boxes.filter(b =>
       b.state !== 'safeZone' && b.state !== 'safeZoneUsed' &&
-      b.state !== 'portalDown' && b.state !== 'portalUp'
+      b.state !== 'portalDown' && b.state !== 'portalUp' &&
+      b.state !== 'mystery' && b.state !== 'mysteryRevealed'
     ).length
   }
 
@@ -285,7 +326,8 @@ export class Board {
   get isComplete(): boolean {
     return this.boxes.every(b =>
       b.state === 'highlighted' || b.state === 'safeZone' || b.state === 'safeZoneUsed' ||
-      b.state === 'portalDown' || b.state === 'portalUp'
+      b.state === 'portalDown' || b.state === 'portalUp' ||
+      b.state === 'mystery' || b.state === 'mysteryRevealed'
     )
   }
 
@@ -295,20 +337,56 @@ export class Board {
 
   private setBoxState(box: HexBox, state: BoxState): void {
     box.state = state
-    const color = state === 'highlighted'   ? COLORS.boxHighlighted
-                : state === 'safeZone'      ? 0xcc44ff
-                : state === 'safeZoneUsed'  ? 0x1a0033
-                : state === 'portalDown'    ? 0xff6600
-                : state === 'portalUp'      ? 0x00ccff
+
+    if (state === 'mystery' && !box.mysteryFx) {
+      const tex = getMysteryStreakTex()
+      const group = new THREE.Group()
+      group.name = 'mystery-streak-root'
+      box.mesh.add(group)
+      const sprites: THREE.Sprite[] = []
+      const phases: number[] = []
+      const count = 12
+      for (let i = 0; i < count; i++) {
+        const mat = new THREE.SpriteMaterial({
+          map: tex, transparent: true, opacity: 0,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        })
+        const sprite = new THREE.Sprite(mat)
+        const angle = (i / count) * Math.PI * 2 + Math.PI / 6
+        const dist = this.R * 0.82
+        sprite.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
+        sprite.scale.set(this.R * 0.11, this.R * 0.49, 1)
+        sprite.renderOrder = 3
+        group.add(sprite)
+        sprites.push(sprite)
+        phases.push(i / count)
+      }
+      box.mysteryFx = { group, sprites, phases }
+    } else if (state !== 'mystery' && box.mysteryFx) {
+      box.mesh.remove(box.mysteryFx.group)
+      for (const s of box.mysteryFx.sprites) s.material.dispose()
+      box.mysteryFx = null
+    }
+
+    const color = state === 'highlighted'      ? COLORS.boxHighlighted
+                : state === 'safeZone'         ? 0xcc44ff
+                : state === 'safeZoneUsed'     ? 0x1a0033
+                : state === 'portalDown'       ? 0xff6600
+                : state === 'portalUp'         ? 0x00ccff
+                : state === 'mystery'          ? 0x000d1a
+                : state === 'mysteryRevealed'  ? 0x001122
                 : COLORS.boxDefault
-    const emissive = state === 'highlighted'   ? 0x004422
-                   : state === 'safeZone'      ? 0x6600cc
-                   : state === 'safeZoneUsed'  ? 0x0d0022
-                   : state === 'portalDown'    ? 0x441100
-                   : state === 'portalUp'      ? 0x001144
+    const emissive = state === 'highlighted'      ? 0x004422
+                   : state === 'safeZone'         ? 0x6600cc
+                   : state === 'safeZoneUsed'     ? 0x0d0022
+                   : state === 'portalDown'       ? 0x441100
+                   : state === 'portalUp'         ? 0x001144
+                   : state === 'mystery'          ? 0x0055cc
+                   : state === 'mysteryRevealed'  ? 0x001133
                    : 0x000000
     const emissiveIntensity = (state === 'portalDown' || state === 'portalUp') ? 2
                             : state === 'safeZone' ? 2
+                            : state === 'mystery' ? 3
                             : 1
     const mats = Array.isArray(box.topMesh.material) ? box.topMesh.material : [box.topMesh.material]
     for (const mat of mats) {
@@ -334,7 +412,13 @@ export class Board {
       box.mesh.remove(old)
     }
 
-    if (state !== 'safeZone' || !_decalHexTemplate || !_safeTexBC) return
+    let bc:   THREE.Texture | null = null
+    let mask: THREE.Texture | null = null
+    if (state === 'safeZone')  { bc = _safeTexBC;     mask = _safeTexMask }
+    if (state === 'portalUp')  { bc = _elevUpTexBC;   mask = _elevUpTexMask }
+    if (state === 'portalDown'){ bc = _elevDownTexBC; mask = _elevDownTexMask }
+    if (state === 'mystery')   { bc = _mysteryTexBC;  mask = _mysteryTexMask }
+    if (!bc || !_decalHexTemplate) return
 
     const decal = _decalHexTemplate.clone(true)
     decal.name = 'tile-decal'
@@ -345,14 +429,9 @@ export class Board {
       obj.renderOrder = 2
       obj.castShadow = false
       obj.receiveShadow = false
-      // MeshBasicMaterial ignores scene lighting — correct for a flat icon/decal.
-      // alphaMap (MASK) drives visibility: white = show, black = hide.
-      // alphaTest avoids the BC alpha channel zeroing everything out when
-      // transparent:true would multiply map.alpha * alphaMap together.
-      // DoubleSide ensures the decal renders regardless of normal direction.
       obj.material = new THREE.MeshBasicMaterial({
-        map:        _safeTexBC!,
-        alphaMap:   _safeTexMask ?? undefined,
+        map:        bc!,
+        alphaMap:   mask ?? undefined,
         alphaTest:  0.1,
         depthWrite: false,
         side:       THREE.DoubleSide,
@@ -415,7 +494,7 @@ export class Board {
     }
 
     const multiplier = this.drawMultiplier()
-    return { id, row, col, state: 'default', multiplier, mesh: group, topMesh, worldPos: pos.clone(), portalArrow: null }
+    return { id, row, col, state: 'default', multiplier, mesh: group, topMesh, worldPos: pos.clone(), portalArrow: null, mysteryFx: null }
   }
 
   private makeHexPrismGeo(radius: number, height: number): THREE.CylinderGeometry {
@@ -567,6 +646,24 @@ export class Board {
         box.portalArrow.scale.setScalar(pulse)
       }
 
+      if (box.state === 'mystery' && box.mysteryFx) {
+        const { group, sprites, phases } = box.mysteryFx
+        group.rotation.y += dt * 0.6
+        const riseHeight = this.R * 0.77
+        const baseY = this._tileTopY
+        for (let i = 0; i < sprites.length; i++) {
+          phases[i] = (phases[i] + dt * (0.44 + i * 0.08)) % 1
+          const p = phases[i]
+          sprites[i].position.y = baseY + p * riseHeight
+          sprites[i].material.opacity = Math.sin(p * Math.PI) * 0.45
+        }
+        const ei = 1.6 + Math.sin(t * 3.2) * 0.9
+        const mats = Array.isArray(box.topMesh.material) ? box.topMesh.material : [box.topMesh.material]
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshStandardMaterial) mat.emissiveIntensity = ei
+        }
+      }
+
       if (box.state === 'safeZone') {
         const ei = 1.6 + Math.sin(t * 3.2) * 0.9
         const mats = Array.isArray(box.topMesh.material) ? box.topMesh.material : [box.topMesh.material]
@@ -574,7 +671,32 @@ export class Board {
           if (mat instanceof THREE.MeshStandardMaterial) mat.emissiveIntensity = ei
         }
       }
+
     }
+  }
+
+  designateMysteryTiles(count: number, seed: number): void {
+    const rng = new SeededRng(seed)
+    const candidates = this.boxes.filter(b =>
+      b.id !== 0 &&
+      b.id !== this.safeZoneId &&
+      b.id !== this.portalDownId &&
+      b.id !== this.portalUpId
+    )
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(rng.next() * (i + 1))
+      ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
+    }
+    this.mysteryIds = []
+    const actual = Math.min(count, candidates.length)
+    for (let i = 0; i < actual; i++) {
+      this.mysteryIds.push(candidates[i].id)
+      this.setBoxState(candidates[i], 'mystery')
+    }
+  }
+
+  revealMystery(box: HexBox): void {
+    this.setBoxState(box, 'mysteryRevealed')
   }
 
   markSafeZoneUsed(): void {
@@ -592,6 +714,10 @@ export class Board {
 
   clear(): void {
     for (const box of this.boxes) {
+      if (box.mysteryFx) {
+        for (const s of box.mysteryFx.sprites) s.material.dispose()
+        box.mysteryFx = null
+      }
       this.scene.remove(box.mesh)
       box.mesh.traverse(obj => {
         if (!(obj instanceof THREE.Mesh)) return

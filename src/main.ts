@@ -7,7 +7,7 @@ import { FloorManager } from './engine/floors'
 import { triggerScreenFlash, CameraShake, ParticleBurst, ShockwaveRing, MultiplierBurst, ShrinkAura } from './engine/vfx'
 import { CasinoSystem } from './systems/casino'
 import { Leaderboard } from './systems/leaderboard'
-import { getLevelConfig, getTierFrustumSize } from './systems/levels'
+import { getLevelConfig, getTierFrustumSize, getMysteryCount } from './systems/levels'
 import { audioManager } from './systems/audio'
 import {
   buildSplashScreen,
@@ -18,6 +18,7 @@ import {
   showSafeZoneDialog,
   showSafeZoneResult,
   showLifeLostToast,
+  showMysteryToast,
   buildLevelCompleteScreen,
   buildGameOverScreen,
   setHUDEnemies,
@@ -73,6 +74,8 @@ class Game {
   private shockwave: ShockwaveRing | null = null
   private shrinkAura: ShrinkAura | null = null
   private multiplierBursts: MultiplierBurst[] = []
+
+  private speedResetTimer: ReturnType<typeof setTimeout> | null = null
 
   private raycaster = new THREE.Raycaster()
   private pointer = new THREE.Vector2()
@@ -229,7 +232,7 @@ class Game {
 
   private generateFloors(config: import('./systems/levels').LevelConfig): void {
     const seed = (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
-    this.floorManager.generateFloors(seed, config.tilesPerFloor)
+    this.floorManager.generateFloors(seed, config.tilesPerFloor, getMysteryCount(config.tier))
 
     // Safe-frame guarantee: frustum must be at least the tier minimum (for
     // consistent tile size), and large enough to fully show every floor's board.
@@ -315,6 +318,11 @@ class Game {
       return
     }
 
+    if (box.state === 'mystery') {
+      this.onMysteryLand(box)
+      return
+    }
+
     if (box.state !== 'highlighted') {
       board.highlightBox(box)
       const mult = this.casino.revealBox(box)
@@ -372,6 +380,97 @@ class Game {
         this.floorManager.enemyManager.enableMovement()
       },
     )
+  }
+
+  private drawMysteryReward(): { label: string; positive: boolean; apply: () => void } {
+    const rng = Math.random
+    const r = rng()
+    // Cumulative weights: bonus_mult 18, bomb 15, freeze 15, slow 12, boost 12, bonus_cash 15, enemy_drop 8, life 5
+    if (r < 0.18) {
+      const mult = [1.5, 2.0, 3.0][Math.floor(rng() * 3)]
+      return {
+        label: `+${mult}× Multiplier!`,
+        positive: true,
+        apply: () => {
+          const bonus = Math.round(this.casino.currentBet * mult)
+          this.casino.bankroll += bonus
+        },
+      }
+    }
+    if (r < 0.33) return {
+      label: '💣 Bomb!',
+      positive: false,
+      apply: () => { this.onPlayerHit() },
+    }
+    if (r < 0.48) return {
+      label: '❄️ Enemy Freeze (2s)',
+      positive: true,
+      apply: () => {
+        this.floorManager.enemyManager.freeze()
+        setTimeout(() => {
+          if (this.currentScreen === 'gameplay' && !this.dying && !this.dialogOpen)
+            this.floorManager.enemyManager.unfreeze()
+        }, 2000)
+      },
+    }
+    if (r < 0.60) return {
+      label: '🐢 Player Slow (2s)',
+      positive: false,
+      apply: () => {
+        this.player.jumpSpeedMultiplier = 0.4
+        if (this.speedResetTimer) clearTimeout(this.speedResetTimer)
+        this.speedResetTimer = setTimeout(() => { this.player.jumpSpeedMultiplier = 1.0 }, 2000)
+      },
+    }
+    if (r < 0.72) return {
+      label: '⚡ Speed Boost (2s)',
+      positive: true,
+      apply: () => {
+        this.player.jumpSpeedMultiplier = 2.5
+        if (this.speedResetTimer) clearTimeout(this.speedResetTimer)
+        this.speedResetTimer = setTimeout(() => { this.player.jumpSpeedMultiplier = 1.0 }, 2000)
+      },
+    }
+    if (r < 0.87) {
+      const bonus = Math.round(this.casino.currentBet * 0.3)
+      return {
+        label: `+$${bonus.toLocaleString()} Bonus`,
+        positive: true,
+        apply: () => { this.casino.bankroll += bonus },
+      }
+    }
+    if (r < 0.95) {
+      const count = Math.random() < 0.5 ? 1 : Math.random() < 0.67 ? 2 : 3
+      return {
+        label: `${count} Enem${count === 1 ? 'y' : 'ies'} Incoming!`,
+        positive: false,
+        apply: () => {
+          this.floorManager.enemyManager.spawnExtra(count, this.player.currentBoxId)
+        },
+      }
+    }
+    return {
+      label: '+1 Life!',
+      positive: true,
+      apply: () => {
+        this.livesRemaining = Math.min(3, this.livesRemaining + 1)
+        this.player.jumpSpeedMultiplier = this.player.jumpSpeedMultiplier  // no-op, just a hook
+        this.refreshHUD()
+      },
+    }
+  }
+
+  private onMysteryLand(box: import('./engine/board').HexBox): void {
+    this.floorManager.board.revealMystery(box)
+    const reward = this.drawMysteryReward()
+    showMysteryToast(this.uiRoot, reward.label, reward.positive)
+    if (!reward.label.includes('Bomb')) {
+      reward.apply()
+      this.refreshHUD()
+    } else {
+      // Small delay so the toast renders before the hit sequence fires
+      setTimeout(() => reward.apply(), 150)
+    }
   }
 
   private resetLevelInPlace(): void {

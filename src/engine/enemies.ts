@@ -103,6 +103,13 @@ export class EnemyManager {
     }
   }
 
+  spawnExtra(count: number, playerBoxId: number): void {
+    this.spawnBatch(
+      [{ type: 'chaser', count }],
+      playerBoxId,
+    )
+  }
+
   freeze(): void { this.frozen = true }
   unfreeze(): void { this.frozen = false }
   enableMovement(): void { this.movementEnabled = true }

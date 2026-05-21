@@ -25,13 +25,17 @@ export class FloorManager {
     this.currentFloor = 0
   }
 
-  generateFloors(seed: number, tilesPerFloor: number): void {
+  generateFloors(seed: number, tilesPerFloor: number, mysteryCount = 0): void {
     for (let i = 0; i < this.boards.length; i++) {
       const floorSeed = (seed ^ ((i + 1) * 2_654_435_761)) >>> 0
       this.boards[i].generateRandom(floorSeed, tilesPerFloor)
       const hasDown = i < this.boards.length - 1
       const hasUp = i > 0
       this.boards[i].designatePortals(hasDown, hasUp)
+      if (mysteryCount > 0) {
+        const mysterySeed = (seed ^ ((i + 13) * 1_234_567_891)) >>> 0
+        this.boards[i].designateMysteryTiles(mysteryCount, mysterySeed)
+      }
     }
 
     this.setCurrentFloor(0)

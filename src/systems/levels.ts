@@ -122,6 +122,16 @@ export function getLevelConfig(level: number): LevelConfig {
   return LEVEL_CONFIGS[level - 1] ?? LEVEL_CONFIGS[LEVEL_CONFIGS.length - 1]
 }
 
+export function getMysteryCount(tier: DifficultyTier): number {
+  switch (tier) {
+    case 'tutorial': return 1
+    case 'easy':     return 2
+    case 'medium':   return 3
+    case 'hard':     return 4
+    case 'final':    return 5
+  }
+}
+
 export function tierLabel(tier: DifficultyTier): string {
   const map: Record<DifficultyTier, string> = {
     tutorial: 'Tutorial',
