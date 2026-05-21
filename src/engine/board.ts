@@ -7,6 +7,12 @@ let _tileTemplate: THREE.Group | null = null
 let _tileRadius: number = HEX_RADIUS
 let _tileHeight: number = HEX_HEIGHT
 
+// Decal system — hex-surface GLB + per-state textures loaded once at startup
+let _decalHexTemplate: THREE.Group | null = null
+const _texLoader = new THREE.TextureLoader()
+let _safeTexBC:   THREE.Texture | null = null
+let _safeTexMask: THREE.Texture | null = null
+
 export type BoxState = 'default' | 'highlighted' | 'safeZone' | 'safeZoneUsed' | 'portalDown' | 'portalUp'
 
 export interface HexBox {
@@ -56,16 +62,22 @@ export class Board {
 
   static async preload(): Promise<void> {
     if (_tileTemplate) return
-    const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/models/Q_tile_01.glb`)
-    _tileTemplate = gltf.scene as THREE.Group
+    const loader = new GLTFLoader()
+    const base = import.meta.env.BASE_URL
 
-    // Measure actual tile dimensions at natural scale
+    const [tileGltf, decalGltf] = await Promise.all([
+      loader.loadAsync(`${base}assets/models/Q_tile_01.glb`),
+      loader.loadAsync(`${base}assets/models/Q_tileHex_01.glb`),
+    ])
+
+    // ── Tile template setup ───────────────────────────────────────────────────
+    _tileTemplate = tileGltf.scene as THREE.Group
+
     const bbox = new THREE.Box3().setFromObject(_tileTemplate)
     const size = bbox.getSize(new THREE.Vector3())
     _tileRadius = Math.max(size.x, size.z) / 2
     _tileHeight = size.y
 
-    // XZ center, Y base at 0 so worldPos = tile base and tileTopY is always positive
     const center = bbox.getCenter(new THREE.Vector3())
     _tileTemplate.position.x -= center.x
     _tileTemplate.position.y -= bbox.min.y
@@ -84,6 +96,23 @@ export class Board {
         }
       }
     })
+
+    // ── Decal template setup (same pivot as tile — no Y correction needed) ───
+    _decalHexTemplate = decalGltf.scene as THREE.Group
+    const db = new THREE.Box3().setFromObject(_decalHexTemplate)
+    const dc = db.getCenter(new THREE.Vector3())
+    _decalHexTemplate.position.x -= dc.x
+    _decalHexTemplate.position.z -= dc.z
+    _decalHexTemplate.updateMatrixWorld(true)
+
+    // ── Decal textures (async-safe: THREE populates them when images arrive) ─
+    _safeTexBC   = _texLoader.load(`${base}assets/T_QuackTileHexSafe_BC.png`)
+    _safeTexMask = _texLoader.load(`${base}assets/T_QuackTileHexSafe_MASK.png`)
+    // GLTFs use Y-up UV space; match it for externally loaded textures
+    _safeTexBC.flipY   = false
+    _safeTexMask.flipY = false
+    _safeTexBC.colorSpace   = THREE.SRGBColorSpace
+    _safeTexMask.colorSpace = THREE.LinearSRGBColorSpace
   }
 
   // Level 1 only — fixed pyramid shape
@@ -294,6 +323,44 @@ export class Board {
         mat.emissiveIntensity = emissiveIntensity
       }
     }
+
+    this.syncDecal(box, state)
+  }
+
+  private syncDecal(box: HexBox, state: BoxState): void {
+    // Remove any existing decal
+    const old = box.mesh.getObjectByName('tile-decal')
+    if (old) {
+      old.traverse(obj => {
+        if (!(obj instanceof THREE.Mesh)) return
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+        mats.forEach(m => m.dispose())
+      })
+      box.mesh.remove(old)
+    }
+
+    if (state !== 'safeZone' || !_decalHexTemplate || !_safeTexBC) return
+
+    const decal = _decalHexTemplate.clone(true)
+    decal.name = 'tile-decal'
+    decal.scale.setScalar(this.R / _tileRadius)
+
+    decal.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) return
+      obj.renderOrder = 2
+      obj.castShadow = false
+      obj.receiveShadow = false
+      obj.material = new THREE.MeshStandardMaterial({
+        map:         _safeTexBC!,
+        alphaMap:    _safeTexMask ?? undefined,
+        transparent: true,
+        depthWrite:  false,
+        roughness:   0.4,
+        metalness:   0.0,
+      })
+    })
+
+    box.mesh.add(decal)
   }
 
   private createBox(id: number, row: number, col: number, pos: THREE.Vector3): HexBox {
@@ -387,12 +454,13 @@ export class Board {
     for (const box of this.boxes) {
       box.mesh.traverse(obj => {
         if (!(obj instanceof THREE.Mesh)) return
+        const isDecal = obj.parent?.name === 'tile-decal'
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
         for (const mat of mats) {
           if (mat instanceof THREE.MeshStandardMaterial) {
-            mat.transparent = alpha < 1
+            mat.transparent = alpha < 1 || isDecal
             mat.opacity = alpha
-            mat.depthWrite = alpha >= 1
+            if (!isDecal) mat.depthWrite = alpha >= 1
           }
         }
       })
