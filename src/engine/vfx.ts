@@ -192,7 +192,7 @@ export class MultiplierBurst {
                 : '#ff2222'
 
     const label = multiplier >= 10 ? `×${multiplier}` : `×${multiplier.toFixed(1)}`
-    ctx.font = 'bold 68px Arial Black, Arial'
+    ctx.font = '68px "Fredoka One", Arial Black, Arial'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.shadowColor = color

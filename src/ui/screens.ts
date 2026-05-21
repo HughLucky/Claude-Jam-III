@@ -121,7 +121,7 @@ style.textContent = `
   }
   .hud-stat { display: flex; flex-direction: column; }
   .hud-stat-label { font-size: 0.65rem; color: rgba(255,255,255,0.4); letter-spacing: 0.2em; text-transform: uppercase; }
-  .hud-stat-value { font-size: 2.2rem; font-weight: 900; color: #fff; line-height: 1.1; }
+  .hud-stat-value { font-family: 'Fredoka One', var(--font); font-size: 2.2rem; font-weight: 900; color: #fff; line-height: 1.1; }
   .hud-progress-bar { width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 0.15em; }
   .hud-progress-fill { height: 100%; background: var(--neon-green); border-radius: 3px; transition: width 0.3s; }
   #hud-timer {
