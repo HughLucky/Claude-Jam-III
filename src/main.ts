@@ -137,6 +137,7 @@ class Game {
     this.casino.reset()
     this.currentLevel = level
     this.runSeed = Math.floor(Math.random() * 2_000_000_000)
+    this.tierFrustumByTier.clear()
     this.startLevel(this.casino.minBet)
   }
 
@@ -227,9 +228,7 @@ class Game {
   }
 
   private generateFloors(config: import('./systems/levels').LevelConfig): void {
-    const seed = config.level === 1
-      ? config.seed
-      : (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
+    const seed = (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
     this.floorManager.generateFloors(seed, config.tilesPerFloor)
 
     // Safe-frame guarantee: frustum must be at least the tier minimum (for
