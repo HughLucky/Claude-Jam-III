@@ -60,6 +60,7 @@ class Game {
   private activeScreenEl: HTMLElement | null = null
   private levelTotalTime: number = 120
   private tierFrustumSize: number = 12
+  private tierFrustumByTier = new Map<string, number>()
   private safeZoneCooldown: boolean = false
   private dialogOpen: boolean = false
   private dying: boolean = false
@@ -128,6 +129,7 @@ class Game {
     this.casino.bankroll = session.bankroll
     this.runSeed = session.seed
     this.livesRemaining = session.lives
+    this.tierFrustumByTier.clear()
     this.showBetScreen()
   }
 
@@ -152,6 +154,7 @@ class Game {
     this.currentLevel = 1
     this.runSeed = Math.floor(Math.random() * 2_000_000_000)
     this.livesRemaining = 3
+    this.tierFrustumByTier.clear()
     this.showBetScreen()
   }
 
@@ -231,11 +234,15 @@ class Game {
 
     // Safe-frame guarantee: frustum must be at least the tier minimum (for
     // consistent tile size), and large enough to fully show every floor's board.
-    let frustum = getTierFrustumSize(config.tier)
+    // Within a tier we carry forward the running max so all levels in the tier
+    // use the same frustum (the worst-case board encountered so far), preventing
+    // level N from appearing larger than level N-1 when its board is more compact.
+    let frustum = this.tierFrustumByTier.get(config.tier) ?? getTierFrustumSize(config.tier)
     for (const board of this.floorManager.boards) {
       this.renderer.fitCamera(board.boxes.map(b => b.worldPos), board.hexRadius)
       frustum = Math.max(frustum, this.renderer.lockFrustum())
     }
+    this.tierFrustumByTier.set(config.tier, frustum)
     this.tierFrustumSize = frustum
     this.renderer.applyLockedFrustum(this.tierFrustumSize)
   }
