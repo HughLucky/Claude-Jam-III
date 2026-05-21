@@ -108,11 +108,6 @@ export class Board {
     // ── Decal textures (async-safe: THREE populates them when images arrive) ─
     _safeTexBC   = _texLoader.load(`${base}assets/T_QuackTileHexSafe_BC.png`)
     _safeTexMask = _texLoader.load(`${base}assets/T_QuackTileHexSafe_MASK.png`)
-    // GLTFs use Y-up UV space; match it for externally loaded textures
-    _safeTexBC.flipY   = false
-    _safeTexMask.flipY = false
-    _safeTexBC.colorSpace   = THREE.SRGBColorSpace
-    _safeTexMask.colorSpace = THREE.LinearSRGBColorSpace
   }
 
   // Level 1 only — fixed pyramid shape
@@ -350,13 +345,17 @@ export class Board {
       obj.renderOrder = 2
       obj.castShadow = false
       obj.receiveShadow = false
-      // MeshBasicMaterial ignores scene lighting — correct for a flat icon/decal
-      // whose normals may face downward and would receive zero light otherwise.
-      // BC is RGBA — its own alpha channel defines the cutout shape; no alphaMap needed.
+      // MeshBasicMaterial ignores scene lighting — correct for a flat icon/decal.
+      // alphaMap (MASK) drives visibility: white = show, black = hide.
+      // alphaTest avoids the BC alpha channel zeroing everything out when
+      // transparent:true would multiply map.alpha * alphaMap together.
+      // DoubleSide ensures the decal renders regardless of normal direction.
       obj.material = new THREE.MeshBasicMaterial({
-        map:         _safeTexBC!,
-        transparent: true,
-        depthWrite:  false,
+        map:        _safeTexBC!,
+        alphaMap:   _safeTexMask ?? undefined,
+        alphaTest:  0.1,
+        depthWrite: false,
+        side:       THREE.DoubleSide,
       })
     })
 
