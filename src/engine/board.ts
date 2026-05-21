@@ -351,10 +351,10 @@ export class Board {
       obj.castShadow = false
       obj.receiveShadow = false
       // MeshBasicMaterial ignores scene lighting — correct for a flat icon/decal
-      // whose normals may face downward and would receive zero light otherwise
+      // whose normals may face downward and would receive zero light otherwise.
+      // BC is RGBA — its own alpha channel defines the cutout shape; no alphaMap needed.
       obj.material = new THREE.MeshBasicMaterial({
         map:         _safeTexBC!,
-        alphaMap:    _safeTexMask ?? undefined,
         transparent: true,
         depthWrite:  false,
       })
