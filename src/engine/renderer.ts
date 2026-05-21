@@ -107,6 +107,11 @@ export class Renderer {
     this.resize()
   }
 
+  // Lock the frustum to a pre-computed size so secondary floors show tiles at
+  // the same visual size as floor 0, regardless of blob shape variation.
+  lockFrustum(): number { return this.frustumSize }
+  applyLockedFrustum(size: number): void { this.frustumSize = size; this.resize() }
+
   resize(): void {
     const w = window.innerWidth
     const h = window.innerHeight

@@ -59,6 +59,7 @@ class Game {
   private hud!: HTMLElement
   private activeScreenEl: HTMLElement | null = null
   private levelTotalTime: number = 120
+  private tierFrustumSize: number = 12
   private safeZoneCooldown: boolean = false
   private dialogOpen: boolean = false
   private dying: boolean = false
@@ -228,6 +229,7 @@ class Game {
       : (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
     this.floorManager.generateFloors(seed, config.tilesPerFloor)
     this.renderer.fitCamera(this.floorManager.board.boxes.map(b => b.worldPos), this.floorManager.board.hexRadius)
+    this.tierFrustumSize = this.renderer.lockFrustum()
   }
 
   // ── Floor transition ──────────────────────────────────────────────────────
@@ -250,10 +252,7 @@ class Game {
       for (const em of this.floorManager.enemyManagers) em.freeze()
 
       this.floorManager.setCurrentFloor(targetFloor)
-      this.renderer.fitCamera(
-        this.floorManager.board.boxes.map(b => b.worldPos),
-        this.floorManager.board.hexRadius,
-      )
+      this.renderer.applyLockedFrustum(this.tierFrustumSize)
 
       const newBoard = this.floorManager.board
       // Spawn on the complementary portal of the target floor

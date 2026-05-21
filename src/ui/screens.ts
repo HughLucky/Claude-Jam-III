@@ -267,7 +267,7 @@ style.textContent = `
     padding-right: 0.7em;
     border-right: 1px solid rgba(255,255,255,0.15);
   }
-  .hud-lives-bankroll img { height: 48px; width: auto; transform: translateX(-14px); }
+  .hud-lives-bankroll img { height: 58px; width: auto; transform: translateX(-14px); }
   .hud-lives-bankroll span { font-size: 3rem; font-weight: 900; color: var(--neon-green); letter-spacing: 0.03em; transform: translateX(-3px); display: inline-block; }
   .life-pip {
     width: 48px; height: 48px; object-fit: contain;
@@ -449,53 +449,84 @@ export function buildLeaderboardScreen(
 ): HTMLElement {
   const screen = el('div', 'qs-screen')
   screen.id = 'leaderboard-screen'
+  screen.style.cssText = 'background:none;'
+
+  const tdStyle = (color: string, size = '1.2rem') =>
+    `style="font-family:'Fredoka One',var(--font);font-size:${size};color:${color};padding:0.25em 0.5em;text-align:center;"`
 
   const rows = entries.slice(0, 10).map((e, i) => {
     const isPlayer = playerEntry !== null && !e.fake &&
       e.initials === playerEntry.initials &&
       e.score === playerEntry.score &&
       e.level === playerEntry.level
-    return `<tr${isPlayer ? ' class="lb-player-row"' : ''}>
-      <td class="lb-rank">${isPlayer ? '▶' : ''} ${i + 1}</td>
-      <td class="${isPlayer ? '' : 'lb-gold'}">${e.initials}</td>
-      <td>$${e.score.toLocaleString()}</td><td>${e.level}</td></tr>`
+    const rowBg = isPlayer ? 'background:rgba(13,32,64,0.08);' : ''
+    return `<tr style="${rowBg}">
+      <td ${tdStyle('#0d2040', '1.04rem')}>${isPlayer ? '▶' : ''}${i + 1}</td>
+      <td ${tdStyle('#0d2040')}>${e.initials}</td>
+      <td ${tdStyle('#0d2040')}>$${e.score.toLocaleString()}</td>
+      <td ${tdStyle('#0d2040', '1.04rem')}>Lv${e.level}</td>
+    </tr>`
   }).join('')
 
   const playerRow = playerEntry && playerRank !== null && playerRank > 10 ? `
-    <tr><td colspan="4" style="border-top:1px solid rgba(255,215,0,0.3);padding:0;"></td></tr>
-    <tr class="lb-player-row">
-      <td class="lb-rank">▶ ${playerRank}</td><td>${playerEntry.initials}</td>
-      <td>$${playerEntry.score.toLocaleString()}</td><td>${playerEntry.level}</td>
+    <tr><td colspan="4" style="border-top:1px solid rgba(13,32,64,0.15);padding:0;"></td></tr>
+    <tr style="background:rgba(13,32,64,0.08);">
+      <td ${tdStyle('#0d2040', '1.04rem')}>▶${playerRank}</td>
+      <td ${tdStyle('#0d2040')}>${playerEntry.initials}</td>
+      <td ${tdStyle('#0d2040')}>$${playerEntry.score.toLocaleString()}</td>
+      <td ${tdStyle('#0d2040', '1.04rem')}>Lv${playerEntry.level}</td>
     </tr>` : ''
 
-  const statsCard = playerEntry && playerRank !== null ? `
-    <div class="qs-card" style="width:min(480px,90vw);display:flex;justify-content:space-around;padding:0.8em 1.2em;margin-bottom:0.8em;">
-      <div style="text-align:center;">
-        <div class="hud-label">All-Time Best</div>
-        <div class="qs-gold" style="font-size:1.2rem;font-weight:900;">$${playerEntry.score.toLocaleString()}</div>
-      </div>
-      <div style="text-align:center;">
-        <div class="hud-label">Best Level</div>
-        <div style="font-size:1.2rem;font-weight:900;color:#fff;">${playerEntry.level}</div>
-      </div>
-      <div style="text-align:center;">
-        <div class="hud-label">Rank</div>
-        <div style="font-size:1.2rem;font-weight:900;color:#fff;">#${playerRank}</div>
+  const thStyle = `style="font-family:'Fredoka One',var(--font);font-size:0.8rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(13,32,64,0.35);padding:0.3em 0.5em;text-align:center;font-weight:400;"`
+
+  const playerStatsSection = playerEntry && playerRank !== null ? `
+    <div style="margin-top:20px;margin-bottom:4px;">
+      <div class="lc-section-title" style="padding-left:10px;position:relative;top:-15px;">Your Stats</div>
+      <div style="display:flex;justify-content:center;align-items:flex-start;gap:3em;padding:0.4em 0 0.2em;">
+        <div style="text-align:center;">
+          <div class="lc-label">All-Time Best</div>
+          <div class="lc-value" style="text-align:center;">$${playerEntry.score.toLocaleString()}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="lc-label">Best Level</div>
+          <div class="lc-value" style="text-align:center;">${playerEntry.level}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="lc-label">Rank</div>
+          <div class="lc-value" style="text-align:center;">#${playerRank}</div>
+        </div>
       </div>
     </div>` : ''
 
   screen.innerHTML = `
-    <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);margin-bottom:0.6em;">Leaderboard</div>
-    ${statsCard}
-    <div class="qs-card">
-      <table class="lb-table">
-        <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
-        <tbody>${rows}${playerRow}</tbody>
-      </table>
+    <div class="bet-title-block" style="position:absolute;top:calc(1.8rem + 42px);left:0;right:0;text-align:center;z-index:1;pointer-events:none;">
+      <div style="font-family:'Fredoka One',var(--font);font-size:clamp(2.1rem,5.25vw,3.3rem);color:#fff;margin-bottom:0.1em;">Leaderboard</div>
     </div>
-    <button class="qs-img-btn interactive" id="btn-back-lb" style="margin-top:1em;">
-      <img src="${import.meta.env.BASE_URL}assets/images/UI_backButton.png" alt="Back">
-    </button>
+    <div class="bet-panel">
+      <img class="bet-panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanelLarge.png" alt="">
+      <div class="bet-panel-content" style="margin-top:40px;overflow-y:auto;">
+        ${playerStatsSection}
+        <div style="margin-top:50px;">
+          <div class="lc-section-title" style="padding-left:10px;position:relative;top:-20px;">Rankings</div>
+          <table style="width:80%;border-collapse:collapse;margin:0.3em auto 0;">
+            <thead>
+              <tr>
+                <th ${thStyle}>#</th>
+                <th ${thStyle}>Name</th>
+                <th ${thStyle}>Score</th>
+                <th ${thStyle}>Lvl</th>
+              </tr>
+            </thead>
+            <tbody>${rows}${playerRow}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;align-items:center;width:min(720px,92vw);margin-top:2.8em;">
+      <button class="qs-img-btn interactive" id="btn-back-lb">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_backButton.png" alt="Back" style="height:83px;">
+      </button>
+    </div>
   `
   screen.querySelector('#btn-back-lb')!.addEventListener('click', onBack)
   return screen
@@ -953,10 +984,10 @@ function speedLabel(speed: number): string {
 
 function enemyImage(type: string): string {
   const map: Record<string, string> = {
-    chaser:  'enemy_01.png',
-    bouncer: 'enemy_02.png',
+    lateral: 'enemy_01.png',
+    chaser:  'enemy_02.png',
     eraser:  'enemy_03.png',
-    lateral: 'enemy_04.png',
+    bouncer: 'enemy_04.png',
     stalker: 'enemy_05.png',
     boss:    'finalboss.png',
   }
