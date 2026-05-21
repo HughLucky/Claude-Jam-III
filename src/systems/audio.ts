@@ -8,6 +8,7 @@ class AudioManager {
   private loopOrder: number[] = []
   private loopPos = 0
   private multiplierToggle = false
+  private readonly bgmEnabled = true
 
   async preload(): Promise<void> {
     const load = (src: string) => {
@@ -40,6 +41,7 @@ class AudioManager {
   // ── BGM ───────────────────────────────────────────────────────────────────
 
   playIntro(): void {
+    if (!this.bgmEnabled) return
     this.stopBgm()
     const intro = this.sfxMap.get('intro')!
     intro.loop = true
@@ -65,6 +67,7 @@ class AudioManager {
   }
 
   playGameplayBgm(isFinalLevel: boolean): void {
+    if (!this.bgmEnabled) return
     this.stopBgm()
     if (isFinalLevel) {
       const ft = this.finalTrack!

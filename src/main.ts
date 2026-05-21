@@ -220,9 +220,9 @@ class Game {
     setHUDEnemies(config.enemySpawns)
     audioManager.playGameplayBgm(config.level === 50)
 
-    const debugBtn = document.getElementById('hud-debug-autocomplete')
-    if (debugBtn) {
-      debugBtn.onclick = () => {
+    const levelBadge = document.getElementById('hud-level-badge')
+    if (levelBadge) {
+      levelBadge.onclick = () => {
         this.timerRunning = false
         const result = this.casino.completeLevelPayout(this.floorManager.totalBoxes)
         this.showLevelComplete(result)
@@ -463,13 +463,13 @@ class Game {
   private onMysteryLand(box: import('./engine/board').HexBox): void {
     this.floorManager.board.revealMystery(box)
     const reward = this.drawMysteryReward()
-    showMysteryToast(this.uiRoot, reward.label, reward.positive)
-    if (!reward.label.includes('Bomb')) {
+    const isBomb = reward.label.includes('Bomb')
+    if (!isBomb) {
+      showMysteryToast(this.uiRoot, reward.label, reward.positive)
       reward.apply()
       this.refreshHUD()
     } else {
-      // Small delay so the toast renders before the hit sequence fires
-      setTimeout(() => reward.apply(), 150)
+      reward.apply()
     }
   }
 

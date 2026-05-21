@@ -135,6 +135,7 @@ style.textContent = `
   #hud-lives-corner { position: absolute; right: var(--safe); top: var(--safe); }
   #hud-level-badge {
     position: absolute; left: var(--safe); bottom: var(--safe);
+    pointer-events: auto;
   }
   #hud-level-badge > img { display: block; height: 120px; width: auto; }
   #hud-level-badge .hud-level-label {
@@ -170,6 +171,14 @@ style.textContent = `
   .lb-player-row td { background: rgba(255,215,0,0.08); color: var(--gold); }
   .lb-rank { color: rgba(255,255,255,0.4); width: 2em; }
   .lb-gold { color: var(--gold); }
+  /* Game over panel — dark-on-light table overrides */
+  #gameover-screen .lb-table { font-family: 'Fredoka One', var(--font); }
+  #gameover-screen .lb-table th:nth-child(n+2), #gameover-screen .lb-table td:nth-child(n+2) { text-align: center; }
+  #gameover-screen .lb-table th { color: rgba(13,32,64,0.45); border-bottom: 1px solid rgba(13,32,64,0.15); }
+  #gameover-screen .lb-table td { color: rgba(13,32,64,0.8); border-bottom: 1px solid rgba(13,32,64,0.08); }
+  #gameover-screen .lb-rank { color: rgba(13,32,64,0.4); }
+  #gameover-screen .lb-gold { color: rgba(0,100,40,0.9); }
+  #gameover-screen .lb-player-row td { background: rgba(0,100,40,0.08); color: rgba(0,100,40,0.9); }
   /* Bet screen slider */
   input[type=range] {
     -webkit-appearance: none; width: 100%; height: 6px;
@@ -274,70 +283,66 @@ style.textContent = `
     transition: opacity 0.3s;
   }
   .life-pip.lost { opacity: 0.15; }
+  /* ── Shared panel-card structure (mirrors level badge) ── */
+  .panel-card { position: relative; display: inline-block; }
+  .panel-card > .panel-bg { display: block; width: auto; }
+  .panel-card > .panel-content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', var(--font); gap: 0.25em; text-align: center;
+  }
+  .panel-card .panel-label {
+    font-size: 0.7rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+  }
   /* Life-lost toast */
   .life-lost-toast {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(20,0,40,0.95); border: 2px solid var(--neon-purple);
-    border-radius: 12px; padding: 1em 2em; text-align: center;
-    font-family: var(--font); pointer-events: none;
-    box-shadow: 0 0 40px rgba(200,0,255,0.5);
+    pointer-events: none;
     animation: toastIn 0.25s ease, toastOut 0.4s ease 1.8s forwards;
     z-index: 20;
   }
-  .life-lost-toast .llt-title { font-size: 1.4rem; font-weight: 900; color: var(--neon-purple); }
-  .life-lost-toast .llt-lives { display: flex; justify-content: center; gap: 0.5em; margin-top: 0.5em; }
-  .life-lost-toast .llt-pip {
-    width: 22px; height: 22px; object-fit: contain;
-    transition: opacity 0.3s;
-  }
+  .life-lost-toast .panel-bg { height: 312px; }
+  .life-lost-toast .llt-title { font-size: 1.8rem; color: rgba(13,32,64,0.85); line-height: 1; }
+  .life-lost-toast .llt-lives { display: flex; justify-content: center; gap: 0.2em; margin-top: 10px; }
+  .life-lost-toast .llt-pip { width: 56px; height: 56px; object-fit: contain; }
   .life-lost-toast .llt-pip.lost { opacity: 0.15; }
+  .life-lost-toast .panel-label { font-size: 1.4rem; color: rgba(13,32,64,0.5); }
   /* Mystery reward toast */
   .mystery-toast {
     position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(0,8,25,0.96); border: 2px solid #00aaff;
-    border-radius: 14px; padding: 0.9em 2em; text-align: center;
-    font-family: var(--font); pointer-events: none;
-    box-shadow: 0 0 40px rgba(0,140,255,0.6), 0 0 80px rgba(0,100,220,0.3);
+    pointer-events: none;
     animation: toastIn 0.25s ease, toastOut 0.4s ease 2s forwards;
     z-index: 20;
   }
-  .mystery-toast .mt-label {
-    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.15em;
-    color: #55ccff; margin-bottom: 0.25em;
-  }
-  .mystery-toast .mt-reward {
-    font-size: 1.5rem; font-weight: 900;
-  }
-  .mystery-toast.good .mt-reward { color: #00eeff; text-shadow: 0 0 14px #00aaff; }
-  .mystery-toast.bad  .mt-reward { color: #ff4455; text-shadow: 0 0 14px #ff2200; }
+  .mystery-toast .panel-bg { height: 321px; }
+  .mystery-toast .panel-label { font-size: 1.575rem; color: rgba(13,32,64,0.5); transform: translateY(-50px); }
+  .mystery-toast .mt-reward { font-size: 1.4rem; line-height: 1.2; color: rgba(13,32,64,0.85); }
+  .mystery-toast.good .mt-reward { color: rgba(0,100,40,0.9); text-shadow: none; }
+  .mystery-toast.bad  .mt-reward { color: rgba(150,20,20,0.9); text-shadow: none; }
   /* Safe zone result toast */
   .safe-zone-toast {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: var(--bg-card); border: 2px solid var(--gold);
-    border-radius: 12px; padding: 1.2em 2.2em; text-align: center;
-    font-family: var(--font); min-width: 280px; pointer-events: none;
-    box-shadow: 0 0 40px rgba(255,215,0,0.4);
+    pointer-events: none;
     animation: toastIn 0.3s ease, toastOut 0.4s ease 1.8s forwards;
     z-index: 20;
   }
-  .safe-zone-toast h3 { color: var(--gold); font-size: 1.2rem; margin-bottom: 0.3em; }
-  .safe-zone-toast .payout { font-size: 2rem; font-weight: 900; color: var(--neon-green); }
-  .safe-zone-toast .sub { font-size: 0.75rem; color: rgba(255,255,255,0.45); margin-top: 0.4em; letter-spacing: 0.15em; text-transform: uppercase; }
+  .safe-zone-toast .panel-bg { height: 190px; }
+  .safe-zone-toast .szt-title { font-size: 1.3rem; color: var(--gold); line-height: 1; }
+  .safe-zone-toast .szt-payout { font-size: 1.8rem; color: var(--neon-green); line-height: 1.1; }
+  .safe-zone-toast .szt-sub { font-size: 0.65rem; letter-spacing: 0.15em; color: rgba(255,255,255,0.45); text-transform: uppercase; }
   /* Safe zone interactive dialog */
   .safe-zone-dialog {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: var(--bg-card); border: 2px solid var(--gold);
-    border-radius: 14px; padding: 1.6em 2.4em; text-align: center;
-    font-family: var(--font); min-width: 300px;
-    box-shadow: 0 0 50px rgba(255,215,0,0.45);
     animation: toastIn 0.25s ease;
     z-index: 30; pointer-events: auto;
   }
-  .safe-zone-dialog h3 { color: var(--gold); font-size: 1.3rem; margin: 0 0 0.3em; }
-  .safe-zone-dialog .szd-payout { font-size: 2.2rem; font-weight: 900; color: var(--neon-green); margin: 0.2em 0; }
-  .safe-zone-dialog .szd-sub { font-size: 0.72rem; color: rgba(255,255,255,0.45); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 1.2em; }
-  .safe-zone-dialog .szd-row { display: flex; gap: 0.8em; justify-content: center; }
-  .safe-zone-dialog .szd-row .qs-btn { width: auto; min-width: 120px; font-size: 0.95rem; }
+  .safe-zone-dialog .panel-bg { height: 400px; }
+  .safe-zone-dialog .szd-title { font-size: 3.12rem; color: rgba(13,32,64,0.75); line-height: 1; transform: translateY(-23px); }
+  .safe-zone-dialog .szd-payout { font-size: 2.2rem; color: rgba(0,100,40,0.9); line-height: 1.1; }
+  .safe-zone-dialog .szd-sub { font-size: 0.65rem; color: rgba(13,32,64,0.5); letter-spacing: 0.15em; text-transform: uppercase; }
+  .safe-zone-dialog .szd-row { display: flex; gap: 0.6em; justify-content: center; transform: translateY(55px); }
+  .safe-zone-dialog .szd-row .qs-img-btn img { height: 54px; }
   @keyframes toastIn  { from { opacity:0; transform:translate(-50%,-44%) scale(0.88); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
   @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translate(-50%,-56%) scale(0.92); } }
   /* Level Complete panel */
@@ -411,22 +416,33 @@ function buildDebugPanel(onLevel: (level: number) => void): HTMLElement {
 
   const panel = document.createElement('details')
   panel.style.cssText = `
-    position:absolute; top:12px; right:12px; z-index:10;
-    background:rgba(0,0,0,0.85); border:1px solid #444;
-    border-radius:8px; padding:0; font-family:monospace;
-    min-width:320px; max-width:90vw;
+    position:absolute; top:10px; right:10px; z-index:10;
+    font-family:monospace;
   `
 
   const summary = document.createElement('summary')
   summary.style.cssText = `
-    padding:6px 12px; cursor:pointer; font-size:0.75rem;
-    color:#aaa; letter-spacing:0.15em; list-style:none; user-select:none;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; list-style:none; user-select:none;
+    background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15);
+    border-radius:6px; opacity:0.45; transition:opacity 0.15s;
   `
-  summary.textContent = '⚙ DEBUG — JUMP TO LEVEL'
+  summary.addEventListener('mouseover', () => { summary.style.opacity = '0.9' })
+  summary.addEventListener('mouseout',  () => { summary.style.opacity = panel.open ? '0.9' : '0.45' })
+  summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>`
   panel.appendChild(summary)
 
-  const body = document.createElement('div')
-  body.style.cssText = 'padding:10px 12px 12px; display:flex; flex-direction:column; gap:8px;'
+  const dropdownWrap = document.createElement('div')
+  dropdownWrap.style.cssText = `
+    position:absolute; top:30px; right:0;
+    background:rgba(0,0,0,0.88); border:1px solid #444;
+    border-radius:8px; padding:10px 12px 12px;
+    min-width:320px; max-width:90vw;
+    display:flex; flex-direction:column; gap:8px;
+  `
 
   for (const tier of tiers) {
     const row = document.createElement('div')
@@ -455,10 +471,10 @@ function buildDebugPanel(onLevel: (level: number) => void): HTMLElement {
     }
 
     row.appendChild(btns)
-    body.appendChild(row)
+    dropdownWrap.appendChild(row)
   }
 
-  panel.appendChild(body)
+  panel.appendChild(dropdownWrap)
   return panel
 }
 
@@ -721,7 +737,7 @@ export function buildHUD(): HTMLElement {
         <img class="life-pip" id="life-pip-1" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">
       </div>
     </div>
-    <div id="hud-level-badge">
+    <div id="hud-level-badge" style="cursor:pointer;">
       <img src="${import.meta.env.BASE_URL}assets/images/UI_blankPanel.png" alt="">
       <div class="hud-level-label">
         <span class="hud-level-title">LEVEL</span>
@@ -730,13 +746,6 @@ export function buildHUD(): HTMLElement {
     </div>
     <div id="hud-floor-badge" style="display:none;">FLOOR <span id="hud-floor">1/1</span></div>
     <div id="hud-enemy-bar" style="position:absolute;bottom:var(--safe);left:calc(var(--safe) + 148px);display:flex;align-items:flex-end;gap:4px;"></div>
-    <button id="hud-debug-autocomplete" style="
-      position:absolute; bottom:calc(var(--safe) + 148px); left:50%; transform:translateX(-50%);
-      background:rgba(180,0,40,0.88); border:2px solid #ff0066; border-radius:6px;
-      color:#fff; font-family:monospace; font-size:0.7rem; font-weight:900;
-      letter-spacing:0.12em; padding:0.35em 1em; cursor:pointer; z-index:10;
-      pointer-events:auto; white-space:nowrap;
-    ">DEBUG: AUTO-COMPLETE</button>
   `
   return hud
 }
@@ -775,14 +784,21 @@ export function updateHUD(level: number, timeLeft: number, filled: number, total
 }
 
 export function showLifeLostToast(uiRoot: HTMLElement, livesRemaining: number): void {
+  uiRoot.querySelectorAll('.mystery-toast, .life-lost-toast').forEach(el => el.remove())
   const toast = document.createElement('div')
   toast.className = 'life-lost-toast'
   const pips = [3, 2, 1].map(i =>
     `<img class="llt-pip${i > livesRemaining ? ' lost' : ''}" src="${import.meta.env.BASE_URL}assets/images/player_life_icon.png" alt="life">`
   ).join('')
   toast.innerHTML = `
-    <div class="llt-title">Life Lost</div>
-    <div class="llt-lives">${pips}</div>
+    <div class="panel-card">
+      <img class="panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanel.png" alt="">
+      <div class="panel-content">
+        <span class="panel-label">Life Lost</span>
+        <div class="llt-title">-1</div>
+        <div class="llt-lives">${pips}</div>
+      </div>
+    </div>
   `
   uiRoot.appendChild(toast)
   setTimeout(() => toast.remove(), 2300)
@@ -792,8 +808,13 @@ export function showMysteryToast(uiRoot: HTMLElement, rewardLabel: string, isPos
   const toast = document.createElement('div')
   toast.className = `mystery-toast ${isPositive ? 'good' : 'bad'}`
   toast.innerHTML = `
-    <div class="mt-label">Mystery Tile</div>
-    <div class="mt-reward">${rewardLabel}</div>
+    <div class="panel-card">
+      <img class="panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanel.png" alt="">
+      <div class="panel-content">
+        <span class="panel-label">Mystery Tile</span>
+        <div class="mt-reward">${rewardLabel}</div>
+      </div>
+    </div>
   `
   uiRoot.appendChild(toast)
   setTimeout(() => toast.remove(), 2500)
@@ -811,13 +832,23 @@ export function showSafeZoneDialog(
   const dialog = el('div', 'safe-zone-dialog')
   const pct = Math.round(elapsedRatio * 100)
   const payoutText = previewPayout > 0 ? `+$${previewPayout.toLocaleString()}` : '$0'
+  const base = import.meta.env.BASE_URL
   dialog.innerHTML = `
-    <h3>Safe Zone</h3>
-    <div class="szd-payout">${payoutText}</div>
-    <div class="szd-sub">${pct}% time · ${avgMult > 0 ? avgMult.toFixed(2) + 'x avg' : 'no tiles yet'}</div>
-    <div class="szd-row">
-      <button class="qs-btn qs-btn-primary szd-cashout">Cash Out</button>
-      <button class="qs-btn qs-btn-secondary szd-keep">▶ Keep Playing</button>
+    <div class="panel-card">
+      <img class="panel-bg" src="${base}assets/images/UI_blankPanel.png" alt="">
+      <div class="panel-content">
+        <span class="szd-title">Safe Zone</span>
+        <div class="szd-payout">${payoutText}</div>
+        <div class="szd-sub">${pct}% time · ${avgMult > 0 ? avgMult.toFixed(2) + 'x avg' : 'no tiles yet'}</div>
+        <div class="szd-row">
+          <button class="qs-img-btn interactive szd-cashout">
+            <img src="${base}assets/images/UI_cashOutButton.png" alt="Cash Out">
+          </button>
+          <button class="qs-img-btn interactive szd-keep">
+            <img src="${base}assets/images/UI_keepPlayingButton.png" alt="Keep Playing">
+          </button>
+        </div>
+      </div>
     </div>
   `
   uiRoot.appendChild(dialog)
@@ -829,9 +860,14 @@ export function showSafeZoneDialog(
 export function showSafeZoneResult(uiRoot: HTMLElement, payout: number): void {
   const toast = el('div', 'safe-zone-toast')
   toast.innerHTML = `
-    <h3>Cashed Out!</h3>
-    <div class="payout">+$${payout.toLocaleString()}</div>
-    <div class="sub">Resetting level…</div>
+    <div class="panel-card">
+      <img class="panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanel.png" alt="">
+      <div class="panel-content">
+        <span class="panel-label">Cashed Out!</span>
+        <div class="szt-payout">+$${payout.toLocaleString()}</div>
+        <div class="szt-sub">Resetting level…</div>
+      </div>
+    </div>
   `
   uiRoot.appendChild(toast)
   setTimeout(() => toast.remove(), 2200)
@@ -937,27 +973,36 @@ export function buildGameOverScreen(
   }
 
   screen.innerHTML = `
-    <div class="qs-title" style="font-size:clamp(1.5rem,4vw,2.5rem);color:var(--neon-pink);-webkit-text-fill-color:unset;">Game Over</div>
-    <div style="display:flex;gap:1.5em;font-family:var(--font);margin-bottom:0.8em;">
-      <span style="color:rgba(255,255,255,0.5);font-size:0.85rem;">FINAL BANKROLL &nbsp;<strong style="color:var(--gold)">$${finalBankroll.toLocaleString()}</strong></span>
-      <span style="color:rgba(255,255,255,0.5);font-size:0.85rem;">REACHED LEVEL &nbsp;<strong style="color:var(--gold)">${levelReached}</strong></span>
+    <div style="position:absolute;top:calc(1.8rem + 42px);left:0;right:0;text-align:center;z-index:1;pointer-events:none;">
+      <div style="font-family:'Fredoka One',var(--font);font-size:clamp(2.1rem,5.25vw,3.3rem);color:#fff;">Game Over</div>
     </div>
-    <div style="display:flex;align-items:center;gap:1em;margin-bottom:1em;" id="initials-row">
-      <span style="font-family:var(--font);font-size:0.8rem;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Your initials:</span>
-      <input id="initials-input" maxlength="3" style="
-        width:5em;text-align:center;background:rgba(255,215,0,0.1);border:1px solid var(--gold);
-        border-radius:4px;color:var(--gold);font-family:var(--font);font-size:1.3rem;font-weight:900;
-        letter-spacing:0.3em;padding:0.2em;text-transform:uppercase;outline:none;
-      " value="AAA">
-      <button class="qs-btn qs-btn-primary interactive" id="btn-submit" style="width:auto;padding:0.5em 1.2em;margin:0;">Submit</button>
+    <div class="bet-panel">
+      <img class="bet-panel-bg" src="${import.meta.env.BASE_URL}assets/images/UI_blankPanelLarge.png" alt="">
+      <div class="bet-panel-content" style="margin-top:40px;overflow-y:auto;">
+        <div style="display:flex;gap:2em;justify-content:center;margin-bottom:0.8em;">
+          <span style="font-family:'Fredoka One',var(--font);font-size:1rem;color:rgba(13,32,64,0.5);">FINAL BANKROLL &nbsp;<strong style="color:#005c2e;">$${finalBankroll.toLocaleString()}</strong></span>
+          <span style="font-family:'Fredoka One',var(--font);font-size:1rem;color:rgba(13,32,64,0.5);">REACHED LEVEL &nbsp;<strong style="color:#0d2040;">${levelReached}</strong></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:1em;margin-bottom:1em;justify-content:center;" id="initials-row">
+          <span style="font-family:'Fredoka One',var(--font);font-size:0.9rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(13,32,64,0.5);">Your initials:</span>
+          <input id="initials-input" maxlength="3" style="
+            width:5em;text-align:center;background:rgba(13,32,64,0.06);border:1px solid rgba(13,32,64,0.3);
+            border-radius:4px;color:#0d2040;font-family:'Fredoka One',var(--font);font-size:1.3rem;
+            letter-spacing:0.3em;padding:0.2em;text-transform:uppercase;outline:none;
+          " value="AAA">
+          <button class="qs-btn qs-btn-primary interactive" id="btn-submit" style="width:auto;padding:0.5em 1.2em;margin:0;font-family:'Fredoka One',var(--font);">Submit</button>
+        </div>
+        <table class="lb-table">
+          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>
-    <div class="qs-card" style="width:min(600px,90vw);">
-      <table class="lb-table">
-        <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div style="margin-top:2em;">
+      <button class="qs-img-btn interactive" id="btn-play-again">
+        <img src="${import.meta.env.BASE_URL}assets/images/UI_mainMenuButton.png" alt="Play Again" style="height:83px;">
+      </button>
     </div>
-    <button class="qs-btn qs-btn-secondary interactive" id="btn-play-again" style="margin-top:0.8em;">↺ Play Again</button>
   `
 
   const input = screen.querySelector('#initials-input') as HTMLInputElement
