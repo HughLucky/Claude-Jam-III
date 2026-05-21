@@ -38,6 +38,20 @@ export function getTileRadius(tier: DifficultyTier): number {
   }
 }
 
+// Fixed camera frustum per tier. Hard and final share the same value so that
+// final tiles are always visually smaller (hexRadius 0.088 vs 0.11 = 80%).
+// Using fitCamera per level causes hard/final to swap because their board
+// extents nearly cancel the hexRadius difference.
+export function getTierFrustumSize(tier: DifficultyTier): number {
+  switch (tier) {
+    case 'tutorial': return 3.1
+    case 'easy':     return 3.3
+    case 'medium':   return 3.0
+    case 'hard':     return 2.7
+    case 'final':    return 2.7
+  }
+}
+
 // tilesPerFloor is FIXED per tier so fitCamera always produces the same frustum,
 // giving identical visual tile size for every level within a tier.
 // Difficulty within a tier scales via enemy count, speed, and floor count.

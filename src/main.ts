@@ -7,7 +7,7 @@ import { FloorManager } from './engine/floors'
 import { triggerScreenFlash, CameraShake, ParticleBurst, ShockwaveRing, MultiplierBurst, ShrinkAura } from './engine/vfx'
 import { CasinoSystem } from './systems/casino'
 import { Leaderboard } from './systems/leaderboard'
-import { getLevelConfig } from './systems/levels'
+import { getLevelConfig, getTierFrustumSize } from './systems/levels'
 import { audioManager } from './systems/audio'
 import {
   buildSplashScreen,
@@ -228,8 +228,16 @@ class Game {
       ? config.seed
       : (this.runSeed ^ (config.level * 2_654_435_761)) >>> 0
     this.floorManager.generateFloors(seed, config.tilesPerFloor)
-    this.renderer.fitCamera(this.floorManager.board.boxes.map(b => b.worldPos), this.floorManager.board.hexRadius)
-    this.tierFrustumSize = this.renderer.lockFrustum()
+
+    // Safe-frame guarantee: frustum must be at least the tier minimum (for
+    // consistent tile size), and large enough to fully show every floor's board.
+    let frustum = getTierFrustumSize(config.tier)
+    for (const board of this.floorManager.boards) {
+      this.renderer.fitCamera(board.boxes.map(b => b.worldPos), board.hexRadius)
+      frustum = Math.max(frustum, this.renderer.lockFrustum())
+    }
+    this.tierFrustumSize = frustum
+    this.renderer.applyLockedFrustum(this.tierFrustumSize)
   }
 
   // ── Floor transition ──────────────────────────────────────────────────────

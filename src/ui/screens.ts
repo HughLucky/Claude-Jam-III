@@ -193,9 +193,9 @@ style.textContent = `
     transition: background 0.15s;
   }
   .quick-bet-btn:hover { background: rgba(255,215,0,0.2); }
-  .spawn-list { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
+  .spawn-list { display: flex; flex-wrap: nowrap; gap: 0.4em; align-items: center; }
   .spawn-item { display: flex; align-items: center; gap: 0.08em; }
-  .enemy-thumb { height: 52px; width: auto; object-fit: contain; margin-top: 5px; }
+  .enemy-thumb { height: 44px; width: auto; object-fit: contain; margin-top: 5px; }
   .spawn-count { font-family: 'Fredoka One', var(--font); font-size: 1.1rem; color: #0d2040; }
   @keyframes title-breathe {
     0%, 100% { transform: scale(1); opacity: 1; }
@@ -381,10 +381,11 @@ export function buildSplashScreen(
 
 function buildDebugPanel(onLevel: (level: number) => void): HTMLElement {
   const tiers = [
-    { label: 'EASY',   range: [1, 20],  color: '#00ff88' },
-    { label: 'MID',    range: [21, 39], color: '#ffd700' },
-    { label: 'HARD',   range: [40, 49], color: '#ff0066' },
-    { label: 'FINAL',  range: [50, 50], color: '#cc00ff' },
+    { label: 'TUTORIAL', range: [1, 5],   color: '#00ff88' },
+    { label: 'EASY',     range: [6, 20],  color: '#00cc66' },
+    { label: 'MEDIUM',   range: [21, 35], color: '#ffd700' },
+    { label: 'HARD',     range: [36, 49], color: '#ff0066' },
+    { label: 'FINAL',    range: [50, 50], color: '#cc00ff' },
   ] as const
 
   const panel = document.createElement('details')
