@@ -350,13 +350,13 @@ export class Board {
       obj.renderOrder = 2
       obj.castShadow = false
       obj.receiveShadow = false
-      obj.material = new THREE.MeshStandardMaterial({
+      // MeshBasicMaterial ignores scene lighting — correct for a flat icon/decal
+      // whose normals may face downward and would receive zero light otherwise
+      obj.material = new THREE.MeshBasicMaterial({
         map:         _safeTexBC!,
         alphaMap:    _safeTexMask ?? undefined,
         transparent: true,
         depthWrite:  false,
-        roughness:   0.4,
-        metalness:   0.0,
       })
     })
 
