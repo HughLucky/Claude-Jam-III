@@ -23,6 +23,7 @@ import {
   buildGameOverScreen,
   setHUDEnemies,
   markHUDEnemyDied,
+  buildTouchControls,
 } from './ui/screens'
 
 type GameScreen = 'splash' | 'leaderboard' | 'bet' | 'gameplay' | 'levelComplete' | 'gameOver'
@@ -58,6 +59,8 @@ class Game {
   private lastTimestamp: number = 0
 
   private hud!: HTMLElement
+  private touchControls?: HTMLElement
+  private readonly isTouch = window.matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window)
   private activeScreenEl: HTMLElement | null = null
   private levelTotalTime: number = 120
   private tierFrustumSize: number = 12
@@ -101,6 +104,12 @@ class Game {
   private buildPersistentUI(): void {
     this.hud = buildHUD()
     this.uiRoot.appendChild(this.hud)
+
+    if (this.isTouch) {
+      document.body.classList.add('touch-device')
+      this.touchControls = buildTouchControls()
+      this.uiRoot.appendChild(this.touchControls)
+    }
   }
 
   // ── Screen transitions ────────────────────────────────────────────────────
@@ -113,6 +122,7 @@ class Game {
   private showSplash(): void {
     this.currentScreen = 'splash'
     this.hud.classList.add('hidden')
+    this.touchControls?.classList.add('hidden')
     audioManager.playIntro()
     const session = loadSession()
     const screen = buildSplashScreen(
@@ -166,6 +176,7 @@ class Game {
     saveSession(this.currentLevel, this.casino.bankroll, this.runSeed, this.livesRemaining)
     this.currentScreen = 'bet'
     this.hud.classList.add('hidden')
+    this.touchControls?.classList.add('hidden')
     const config = getLevelConfig(this.currentLevel)
     const screen = buildBetScreen(
       config,
@@ -216,6 +227,7 @@ class Game {
     this.floorManager.spawnAll(config.enemySpawns, config.enemySpeed, config.seed, this.player.currentBoxId)
 
     this.hud.classList.remove('hidden')
+    this.touchControls?.classList.remove('hidden')
     this.refreshHUD()
     setHUDEnemies(config.enemySpawns)
     audioManager.playGameplayBgm(config.level === 50)
@@ -523,6 +535,7 @@ class Game {
     else audioManager.playLevelComplete()
     this.floorManager.clear()
     this.hud.classList.add('hidden')
+    this.touchControls?.classList.add('hidden')
     const screen = buildLevelCompleteScreen(
       result,
       this.casino.bankroll,
@@ -553,6 +566,7 @@ class Game {
     audioManager.playGameOver()
     this.timerRunning = false
     this.hud.classList.add('hidden')
+    this.touchControls?.classList.add('hidden')
     const top = this.leaderboard.getTop(10)
     const screen = buildGameOverScreen(
       this.casino.bankroll,
@@ -580,37 +594,43 @@ class Game {
   private bindInput(): void {
     window.addEventListener('keydown', e => this.onKey(e))
     this.renderer.renderer.domElement.addEventListener('click', e => this.onCanvasClick(e))
+    if (this.isTouch) this.bindTouchControls()
+  }
+
+  private performMove(dr: number, dc: number): void {
+    if (this.currentScreen !== 'gameplay' || this.dying || this.dialogOpen) return
+    const current = this.floorManager.board.getBoxById(this.player.currentBoxId)
+    if (!current) return
+    const targetBox = this.floorManager.board.getBox(current.row + dr, current.col + dc)
+    if (targetBox) this.player.tryMove(targetBox.id)
   }
 
   private onKey(e: KeyboardEvent): void {
     if (this.currentScreen !== 'gameplay' || this.dying || this.dialogOpen) return
 
-    const current = this.floorManager.board.getBoxById(this.player.currentBoxId)
-    if (!current) return
-    const { row, col } = current
-
-    const moves: Record<string, { row: number; col: number }> = {
-      'Numpad7': { row: row,     col: col - 1 },
-      'Numpad9': { row: row + 1, col: col - 1 },
-      'Numpad6': { row: row + 1, col: col     },
-      'Numpad3': { row: row,     col: col + 1 },
-      'Numpad1': { row: row - 1, col: col + 1 },
-      'Numpad4': { row: row - 1, col: col     },
-      'ArrowUp':    { row: row,     col: col - 1 },
-      'ArrowRight': { row: row + 1, col: col - 1 },
-      'ArrowDown':  { row: row,     col: col + 1 },
-      'ArrowLeft':  { row: row - 1, col: col + 1 },
-      'KeyW': { row: row,     col: col - 1 },
-      'KeyD': { row: row + 1, col: col - 1 },
-      'KeyS': { row: row,     col: col + 1 },
-      'KeyA': { row: row - 1, col: col + 1 },
+    const deltas: Record<string, [number, number]> = {
+      'Numpad7': [ 0, -1], 'Numpad9': [ 1, -1], 'Numpad6': [ 1,  0],
+      'Numpad3': [ 0,  1], 'Numpad1': [-1,  1], 'Numpad4': [-1,  0],
+      'ArrowUp': [ 0, -1], 'ArrowRight': [1, -1], 'ArrowDown': [0, 1], 'ArrowLeft': [-1, 1],
+      'KeyW':    [ 0, -1], 'KeyD':  [1, -1], 'KeyS': [0,  1], 'KeyA': [-1,  1],
     }
 
-    const target = moves[e.code]
-    if (!target) return
+    const delta = deltas[e.code]
+    if (!delta) return
     e.preventDefault()
-    const targetBox = this.floorManager.board.getBox(target.row, target.col)
-    if (targetBox) this.player.tryMove(targetBox.id)
+    this.performMove(delta[0], delta[1])
+  }
+
+  private bindTouchControls(): void {
+    if (!this.touchControls) return
+    this.touchControls.querySelectorAll<HTMLElement>('.touch-btn').forEach(btn => {
+      const dr = parseInt(btn.dataset.dr ?? '0')
+      const dc = parseInt(btn.dataset.dc ?? '0')
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault()
+        this.performMove(dr, dc)
+      })
+    })
   }
 
   private onCanvasClick(e: MouseEvent): void {

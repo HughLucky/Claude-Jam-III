@@ -357,8 +357,101 @@ style.textContent = `
   }
   .lc-label { font-family: 'Fredoka One', var(--font); font-size: 1.7rem; color: rgba(13,32,64,0.5); }
   .lc-value { font-family: 'Fredoka One', var(--font); font-size: 2rem; color: #0d2040; font-weight: 900; text-align: right; }
+  /* ── Mobile touch controls ── */
+  #touch-controls {
+    display: none;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .touch-device #touch-controls { display: block; }
+  .touch-device #touch-controls.hidden { display: none; }
+  .touch-panel {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    pointer-events: auto;
+  }
+  .touch-panel-left  { left:  calc(env(safe-area-inset-left,  0px) + 0.6rem); }
+  .touch-panel-right { right: calc(env(safe-area-inset-right, 0px) + 0.6rem); }
+  .touch-btn {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 2px solid rgba(204,0,255,0.5);
+    background: rgba(10,0,24,0.65);
+    color: rgba(255,255,255,0.85);
+    font-size: 1.5rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.08s, border-color 0.08s;
+    backdrop-filter: blur(4px);
+  }
+  .touch-btn:active {
+    background: rgba(204,0,255,0.3);
+    border-color: rgba(204,0,255,0.9);
+  }
+  /* Landscape phones: smaller buttons, lower to clear the smaller HUD badge */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .touch-panel { bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem); gap: 0.25rem; }
+    .touch-btn { width: 50px; height: 50px; font-size: 1.2rem; }
+  }
+  /* Scale down the level badge on touch devices to make room */
+  .touch-device #hud-level-badge > img { height: 72px; }
+  .touch-device #hud-level-badge #hud-level { font-size: 2rem; }
+  .touch-device #hud-level-badge .hud-level-title { font-size: 0.55rem; }
 `
 document.head.appendChild(style)
+
+// ─── Touch controls overlay (mobile) ─────────────────────────────────────────
+export function buildTouchControls(): HTMLElement {
+  const container = document.createElement('div')
+  container.id = 'touch-controls'
+  container.classList.add('hidden')
+
+  // Left panel: Numpad 7 ↖, Numpad 4 ←, Numpad 1 ↙
+  const leftPanel = document.createElement('div')
+  leftPanel.className = 'touch-panel touch-panel-left'
+  ;[
+    { label: '↖', dr:  0, dc: -1, title: 'Upper Left'  },
+    { label: '←', dr: -1, dc:  0, title: 'Left'        },
+    { label: '↙', dr: -1, dc:  1, title: 'Lower Left'  },
+  ].forEach(({ label, dr, dc, title }) => {
+    const btn = document.createElement('button')
+    btn.className = 'touch-btn'
+    btn.textContent = label
+    btn.setAttribute('aria-label', title)
+    btn.dataset.dr = String(dr)
+    btn.dataset.dc = String(dc)
+    leftPanel.appendChild(btn)
+  })
+
+  // Right panel: Numpad 9 ↗, Numpad 6 →, Numpad 3 ↘
+  const rightPanel = document.createElement('div')
+  rightPanel.className = 'touch-panel touch-panel-right'
+  ;[
+    { label: '↗', dr:  1, dc: -1, title: 'Upper Right' },
+    { label: '→', dr:  1, dc:  0, title: 'Right'       },
+    { label: '↘', dr:  0, dc:  1, title: 'Lower Right' },
+  ].forEach(({ label, dr, dc, title }) => {
+    const btn = document.createElement('button')
+    btn.className = 'touch-btn'
+    btn.textContent = label
+    btn.setAttribute('aria-label', title)
+    btn.dataset.dr = String(dr)
+    btn.dataset.dc = String(dc)
+    rightPanel.appendChild(btn)
+  })
+
+  container.appendChild(leftPanel)
+  container.appendChild(rightPanel)
+  return container
+}
 
 // ─── Splash Screen ────────────────────────────────────────────────────────────
 export function buildSplashScreen(
