@@ -21,6 +21,8 @@ document.head.appendChild(fontLink)
 // ─── Inject global CSS once ───────────────────────────────────────────────────
 const style = document.createElement('style')
 style.textContent = `
+  canvas { touch-action: none; }
+  button, a, .qs-btn, .qs-img-btn, .interactive { touch-action: manipulation; }
   :root {
     --gold: #ffd700;
     --neon-purple: #cc00ff;
@@ -372,18 +374,18 @@ style.textContent = `
     bottom: calc(env(safe-area-inset-bottom, 0px) + 8.5rem);
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.65rem;
     pointer-events: auto;
   }
   .touch-panel-left  { left:  calc(env(safe-area-inset-left,  0px) + 0.6rem); }
   .touch-panel-right { right: calc(env(safe-area-inset-right, 0px) + 0.6rem); }
   .touch-btn {
-    width: 60px; height: 60px;
+    width: 68px; height: 68px;
     border-radius: 50%;
     border: 2px solid rgba(204,0,255,0.5);
     background: rgba(10,0,24,0.65);
     color: rgba(255,255,255,0.85);
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
@@ -398,8 +400,8 @@ style.textContent = `
   }
   /* Landscape phones: smaller buttons, lower to clear the smaller HUD badge */
   @media (orientation: landscape) and (max-height: 500px) {
-    .touch-panel { bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem); gap: 0.25rem; }
-    .touch-btn { width: 50px; height: 50px; font-size: 1.2rem; }
+    .touch-panel { bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem); gap: 0.4rem; }
+    .touch-btn { width: 54px; height: 54px; font-size: 1.35rem; }
   }
   /* Scale down the level badge on touch devices to make room */
   .touch-device #hud-level-badge > img { height: 72px; }

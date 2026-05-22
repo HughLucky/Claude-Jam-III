@@ -593,8 +593,16 @@ class Game {
   // ── Input ─────────────────────────────────────────────────────────────────
   private bindInput(): void {
     window.addEventListener('keydown', e => this.onKey(e))
-    this.renderer.renderer.domElement.addEventListener('click', e => this.onCanvasClick(e))
-    if (this.isTouch) this.bindTouchControls()
+    const canvas = this.renderer.renderer.domElement
+    canvas.addEventListener('click', e => this.onCanvasClick(e))
+    if (this.isTouch) {
+      canvas.addEventListener('touchend', e => {
+        e.preventDefault()
+        const touch = e.changedTouches[0]
+        this.onCanvasInteract(touch.clientX, touch.clientY)
+      }, { passive: false })
+      this.bindTouchControls()
+    }
   }
 
   private performMove(dr: number, dc: number): void {
@@ -626,18 +634,18 @@ class Game {
     this.touchControls.querySelectorAll<HTMLElement>('.touch-btn').forEach(btn => {
       const dr = parseInt(btn.dataset.dr ?? '0')
       const dc = parseInt(btn.dataset.dc ?? '0')
-      btn.addEventListener('pointerdown', e => {
+      btn.addEventListener('touchstart', e => {
         e.preventDefault()
         this.performMove(dr, dc)
-      })
+      }, { passive: false })
     })
   }
 
-  private onCanvasClick(e: MouseEvent): void {
+  private onCanvasInteract(clientX: number, clientY: number): void {
     if (this.currentScreen !== 'gameplay' || this.dialogOpen) return
     const rect = this.renderer.renderer.domElement.getBoundingClientRect()
-    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1
 
     this.raycaster.setFromCamera(this.pointer, this.renderer.camera)
     const meshes = this.floorManager.board.boxes.map(b => b.topMesh)
@@ -647,6 +655,10 @@ class Game {
     const hitMesh = hits[0].object
     const box = this.floorManager.board.boxes.find(b => b.topMesh === hitMesh)
     if (box) this.player.tryMove(box.id)
+  }
+
+  private onCanvasClick(e: MouseEvent): void {
+    this.onCanvasInteract(e.clientX, e.clientY)
   }
 
   // ── HUD ───────────────────────────────────────────────────────────────────
